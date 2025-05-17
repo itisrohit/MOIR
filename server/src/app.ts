@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 const app = express();
@@ -25,7 +25,7 @@ app.use(`${API_PREFIX}/user`, userRoutes);
 //-------------------------------------------------
 
 // Health check route
-app.get("/health", (_, res) => {
+app.get("/health", (_: Request, res: Response) => {
   res.status(200).json({
     status: "success",
     message: "Server is up and running",
@@ -33,7 +33,7 @@ app.get("/health", (_, res) => {
 });
 
 // Root route
-app.get("/", (_, res) => {
+app.get("/", (_: Request, res: Response) => {
   res.status(200).json({
     status: "success",
     message: "Welcome to the API",
