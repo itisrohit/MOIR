@@ -12,6 +12,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 export const SidebarContext = createContext({
   toggleSidebar: () => {},
   isVisible: true,
+  messageViewActive: false,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  setMessageViewActive: (active: boolean) => {},
 });
 
 export function useSidebar() {
@@ -20,7 +23,7 @@ export function useSidebar() {
 
 export function Sidebar() {
   const [activeItem, setActiveItem] = useState("Chat");
-  const { isVisible, toggleSidebar } = useSidebar();
+  const { isVisible, toggleSidebar, messageViewActive } = useSidebar();
 
   const navItems = [
     { name: "Chat", icon: <MessageSquare className="h-5 w-5" /> },
@@ -30,12 +33,12 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Improved toggle button */}
+      {/* Desktop toggle button - unchanged */}
       <Button
         variant="ghost"
         onClick={toggleSidebar}
         className={cn(
-          // Desktop styling
+          // Desktop styling remains the same
           "hidden md:flex fixed z-40 items-center justify-center p-0",
           "h-12 w-6 border border-l-0 border-border/60",
           "bg-background/95 backdrop-blur-sm shadow-sm",
@@ -54,7 +57,7 @@ export function Sidebar() {
         )}
       </Button>
 
-      {/* Mobile toggle button */}
+      {/* Mobile toggle button - hide when message view is active */}
       <Button
         variant="ghost"
         onClick={toggleSidebar}
@@ -63,7 +66,9 @@ export function Sidebar() {
           "bottom-4 right-4 h-12 w-12 rounded-full",
           "bg-background/95 backdrop-blur-sm shadow-md border border-border/60",
           "transition-all duration-300 ease-in-out",
-          isVisible ? "rotate-180" : "rotate-0"
+          isVisible ? "rotate-180" : "rotate-0",
+          // Hide when message view is active
+          messageViewActive && "hidden"
         )}
         aria-label={isVisible ? "Close menu" : "Open menu"}
       >

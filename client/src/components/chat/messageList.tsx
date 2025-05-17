@@ -1,9 +1,4 @@
-type Message = {
-  id: number;
-  text: string;
-  sender: 'me' | 'them';
-  time: string;
-};
+import { Message } from "@/types/chat";
 
 type MessageListProps = {
   messages: Message[];

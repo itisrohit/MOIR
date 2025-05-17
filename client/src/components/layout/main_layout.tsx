@@ -6,13 +6,20 @@ import { useState } from "react";
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   // Control sidebar visibility
   const [visible, setVisible] = useState(false); 
+  // Add this new state to track if message view is open
+  const [messageViewActive, setMessageViewActive] = useState(false);
   
   const toggleSidebar = () => {
     setVisible(prev => !prev);
   };
 
   return (
-    <SidebarContext.Provider value={{ toggleSidebar, isVisible: visible }}>
+    <SidebarContext.Provider value={{ 
+      toggleSidebar, 
+      isVisible: visible, 
+      messageViewActive, 
+      setMessageViewActive 
+    }}>
       <div className="flex h-screen overflow-hidden bg-background">
         {/* Application Sidebar */}
         <Sidebar />  
