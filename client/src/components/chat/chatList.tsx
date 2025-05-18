@@ -100,7 +100,7 @@ export default function ChatList({
 							</div>
 
 							{chat.unread > 0 && (
-								<div className="bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
+								<div className="min-w-[20px] h-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center ml-2">
 									{chat.unread}
 								</div>
 							)}
