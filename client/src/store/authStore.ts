@@ -250,11 +250,32 @@ api.interceptors.request.use(
 );
 
 // Add response interceptor to handle unauthorized responses
+// Add a method for local logout (without server call)
+const localLogout = () => {
+  useAuthStore.setState({
+    user: null,
+    accessToken: null,
+    isAuthenticated: false,
+    loading: false,
+  });
+  
+  // Clear cookies
+  document.cookie.split(";").forEach((c) => {
+    document.cookie = c
+      .replace(/^ +/, "")
+      .replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
+  });
+  
+  // Clear localStorage
+  localStorage.removeItem('auth-storage');
+};
+
 api.interceptors.response.use(
   response => response,
   error => {
     if (error.response?.status === 401 && useAuthStore.getState().isAuthenticated) {
-      useAuthStore.getState().logout();
+      // Use local logout instead of API call when we already know auth failed
+      localLogout();
     }
     return Promise.reject(error);
   }
