@@ -193,6 +193,8 @@ export const useAuthStore = create<AuthStore>()(
             accessToken: null,
             isAuthenticated: false,
           });
+        } finally {
+          localLogout();
         }
       },
 
