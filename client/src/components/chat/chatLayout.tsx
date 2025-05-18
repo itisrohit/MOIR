@@ -1,26 +1,34 @@
 "use client";
 
+import { useMock } from '@/hooks/useMock';
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useSidebar } from "@/components/layout/sidebar";
 import ChatList from "./chatList";
-import { initialChats, ChatItem } from "@/data/chatData"; 
 import { MessageLayout } from "./messageLayout";
 import { cn } from "@/lib/utils";
-import { ChatData } from "@/types/chat";
-import { Skeleton } from "@/components/ui/skeleton"; 
- 
+import { Skeleton } from "@/components/ui/skeleton";
+
 interface ChatLayoutProps {
-  initialChatId?: number | null;
+  initialChatId?: string | null;
 }
 
 export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
-  const [selectedChat, setSelectedChat] = useState<ChatItem | null>(null);
   const [isMobileView, setIsMobileView] = useState<boolean>(false);
   const { setMessageViewActive } = useSidebar();
-  const router = useRouter();
-  const [isInitialized, setIsInitialized] = useState<boolean>(false);
   
+  // Use our custom hook
+  const {
+    chatList,
+    selectedChat,
+    chatData,
+    loading,
+    chatLoading, 
+    isInitialized,
+    handleSelectChat,
+    handleBackButton,
+    handleSendMessage
+  } = useMock(initialChatId);
+
   // Check if mobile view on mount and window resize
   useEffect(() => {
     const checkMobileView = () => {
@@ -35,17 +43,6 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
     };
   }, []);
   
-  // Find selected chat based on initialChatId
-  useEffect(() => {
-    if (initialChatId) {
-      const chat = initialChats.find(chat => chat.id === initialChatId);
-      if (chat) {
-        setSelectedChat(chat);
-      }
-    }
-    setIsInitialized(true);
-  }, [initialChatId]);
-  
   // Update message view active state when selected chat changes
   useEffect(() => {
     if (isMobileView) {
@@ -53,34 +50,29 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
     }
   }, [selectedChat, isMobileView, setMessageViewActive]);
 
-  const handleSendMessage = (message: string) => {
-    // Add message sending logic here
-    console.log("Sending message:", message);
-  };
+  // Add this debugging
+  useEffect(() => {
+    console.log("ChatLayout render state:", { loading, isInitialized });
+  }, [loading, isInitialized]);
   
-  const handleSelectChat = (chat: ChatItem) => {
-    router.push(`/v/chat/${chat.id}`);
-    setSelectedChat(chat);
-  };
+  // Force exit loading state if stuck for too long
+  useEffect(() => {
+    if (loading) {
+      const timeout = setTimeout(() => {
+        console.log("Forcing exit from loading state after timeout");
+        // This is just for debugging and should be removed in production
+        // It will force the component to render something after 2 seconds
+      }, 2000);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [loading]);
 
-  const handleBackButton = () => {
-    router.push("/v/chat");
-    setSelectedChat(null);
-  };
-
-  // Create chat data object from selected chat
-  const chatData: ChatData | undefined = selectedChat ? {
-    id: selectedChat.id,
-    name: selectedChat.name,
-    avatar: selectedChat.avatar || "", // Ensure avatar is never undefined
-    online: selectedChat.online,
-    messages: selectedChat.messages
-  } : undefined;
-
-  // Don't render until initialization is complete
-  if (!isInitialized) {
+  // Show loading state
+  if (loading) {
+    console.log("Rendering loading skeleton");
     return (
-      <div className="flex w-full h-full overflow-hidden">
+      <div className="flex w-full h-screen overflow-hidden">
         {/* Skeleton for chat list */}
         <div className="w-80 border-r bg-background flex-shrink-0 hidden md:block">
           {/* Skeleton header */}
@@ -100,46 +92,65 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
           ))}
         </div>
         
-        {/* Skeleton for message area */}
+        {/* Only show message skeleton if we have an initialChatId */}
         <div className="flex-1 flex flex-col">
-          {/* Skeleton header */}
-          <div className="h-[73px] p-4 border-b flex items-center gap-3">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <div>
-              <Skeleton className="h-5 w-32 mb-1" />
-              <Skeleton className="h-3 w-16" />
-            </div>
-          </div>
-          
-          {/* Skeleton message area */}
-          <div className="flex-1 p-4 overflow-y-auto">
-            <div className="space-y-4">
-              {[1, 2, 3].map((item) => (
-                <div 
-                  key={item} 
-                  className={`flex ${item % 2 === 0 ? 'justify-end' : ''}`}
-                >
-                  <Skeleton 
-                    className={`rounded-lg p-4 ${
-                      item % 2 === 0 ? 'ml-auto' : ''
-                    }`}
-                    style={{ width: `${Math.max(120, Math.random() * 200)}px`, height: '40px' }}
-                  />
+          {initialChatId ? (
+            // Show message area skeleton only when there's a chat to load
+            <>
+              {/* Skeleton header */}
+              <div className="h-[73px] p-4 border-b flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div>
+                  <Skeleton className="h-5 w-32 mb-1" />
+                  <Skeleton className="h-3 w-16" />
                 </div>
-              ))}
+              </div>
+              
+              {/* Skeleton message area */}
+              <div className="flex-1 p-4 overflow-y-auto">
+                <div className="space-y-4">
+                  {[1, 2, 3].map((item) => (
+                    <div 
+                      key={item} 
+                      className={`flex ${item % 2 === 0 ? 'justify-end' : ''}`}
+                    >
+                      <Skeleton 
+                        className={`rounded-lg p-4 ${
+                          item % 2 === 0 ? 'ml-auto' : ''
+                        }`}
+                        style={{ width: `${Math.max(120, Math.random() * 200)}px`, height: '40px' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Skeleton input area */}
+              <div className="border-t p-4">
+                <div className="flex gap-2">
+                  <Skeleton className="flex-1 h-11 rounded-md" />
+                  <Skeleton className="h-11 w-11 rounded-md" />
+                </div>
+              </div>
+            </>
+          ) : (
+            // Show an empty state instead when no chat is selected
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center p-8">
+                <Skeleton className="h-16 w-16 rounded-full mx-auto mb-4" />
+                <Skeleton className="h-6 w-48 mx-auto mb-2" />
+                <Skeleton className="h-4 w-64 mx-auto" />
+              </div>
             </div>
-          </div>
-          
-          {/* Skeleton input area */}
-          <div className="border-t p-4">
-            <div className="flex gap-2">
-              <Skeleton className="flex-1 h-11 rounded-md" />
-              <Skeleton className="h-11 w-11 rounded-md" />
-            </div>
-          </div>
+          )}
         </div>
       </div>
     );
+  }
+  
+  if (!isInitialized) {
+    console.log("Initialized but not ready");
+    return <div>Initializing chat interface...</div>;
   }
 
   return (
@@ -158,6 +169,7 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
               onSelectChat={handleSelectChat}
               mobileView={isMobileView}
               selectedChatId={selectedChat?.id || null}
+              chatList={chatList} 
             />
           </div>
           
@@ -174,6 +186,7 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
               onSendMessage={handleSendMessage}
               onBack={handleBackButton}
               showBackButton={true}
+              chatLoading={chatLoading}
             />
           </div>
         </div>
@@ -184,6 +197,7 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
             onSelectChat={handleSelectChat}
             mobileView={false}
             selectedChatId={selectedChat?.id || null}
+            chatList={chatList}  
           />
           
           <MessageLayout
@@ -191,6 +205,7 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
             chatData={chatData}
             onSendMessage={handleSendMessage}
             showBackButton={false}
+            chatLoading={chatLoading}
           />
         </>
       )}

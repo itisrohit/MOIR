@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import MainLayout from "@/components/layout/main_layout";
 import useAuth from "@/hooks/useAuth";
@@ -13,14 +13,22 @@ interface VLayoutProps {
 export default function VLayout({ children }: VLayoutProps) {
   const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
+  const [isHydrated, setIsHydrated] = useState(false);
 
+  // First, wait for component hydration
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
+    setIsHydrated(true);
+  }, []);
+
+  // Then, only redirect if not authenticated and hydration is complete
+  useEffect(() => {
+    if (isHydrated && !loading && !isAuthenticated) {
       router.replace('/auth');
     }
-  }, [isAuthenticated, loading, router]);
+  }, [isAuthenticated, loading, router, isHydrated]);
 
-  if (loading) {
+  // Show skeleton during initial load
+  if (loading || !isHydrated) {
     return (
       <div className="w-full h-screen p-4 space-y-4">
         <Skeleton className="h-8 w-full" />

@@ -3,14 +3,16 @@ import { MessageList } from "./messageList";
 import { MessageInput } from "./messageInput";
 import { EmptyChat } from "./emptyChat";
 import { EmptyMessage } from "./emptyMessage";
-import { ChatData } from "@/types/chat";  // Import shared types
+import { Skeleton } from "@/components/ui/skeleton";
+import { ChatData } from "@/hooks/useMock";
 
 type MessageLayoutProps = {
-  selectedChatId: number | null;
+  selectedChatId: string | null; 
   chatData?: ChatData;
   onSendMessage: (message: string) => void;
   onBack?: () => void;
   showBackButton?: boolean;
+  chatLoading?: boolean; // Add this prop
 };
 
 export function MessageLayout({
@@ -18,7 +20,8 @@ export function MessageLayout({
   chatData,
   onSendMessage,
   onBack,
-  showBackButton = false
+  showBackButton = false,
+  chatLoading = false // Default to false
 }: MessageLayoutProps) {
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -32,14 +35,33 @@ export function MessageLayout({
             showBackButton={showBackButton}
           />
           
-          {/* Show message list only if there are messages */}
-          {chatData.messages && chatData.messages.length > 0 ? (
-            <MessageList messages={chatData.messages} />
+          {/* Show skeleton when loading, otherwise normal content */}
+          {chatLoading ? (
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {[1, 2, 3].map((item) => (
+                <div 
+                  key={item} 
+                  className={`flex ${item % 2 === 0 ? 'justify-end' : 'justify-start'}`}
+                >
+                  <Skeleton 
+                    className={`rounded-xl p-4 ${
+                      item % 2 === 0 ? 'ml-auto' : 'mr-auto'
+                    }`}
+                    style={{ width: `${Math.max(120, Math.random() * 200)}px`, height: '40px' }}
+                  />
+                </div>
+              ))}
+            </div>
           ) : (
-            <EmptyMessage 
-              name={chatData.name} 
-              onSendMessage={onSendMessage} 
-            />
+            /* Show message list only if there are messages, otherwise show empty state */
+            chatData.messages && chatData.messages.length > 0 ? (
+              <MessageList messages={chatData.messages} />
+            ) : (
+              <EmptyMessage 
+                name={chatData.name} 
+                onSendMessage={onSendMessage} 
+              />
+            )
           )}
           
           <MessageInput onSendMessage={onSendMessage} />

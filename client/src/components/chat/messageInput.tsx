@@ -27,7 +27,6 @@ export function MessageInput({ onSendMessage }: MessageInputProps) {
           onChange={(e) => setMessageInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
         />
-        
         <Button 
           size="icon" 
           className={cn(

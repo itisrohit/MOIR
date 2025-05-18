@@ -5,31 +5,32 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { initialChats, ChatItem } from "@/data/chatData"; 
+import { ChatItem } from "@/hooks/useMock";  
 
 export default function ChatList({
-	onSelectChat,
-	mobileView,
-	selectedChatId,
+    onSelectChat,
+    mobileView,
+    selectedChatId,
+    chatList, // Add this prop
 }: {
-	onSelectChat: (chat: ChatItem) => void; 
-	mobileView?: boolean; // Add this type definition
-	selectedChatId: number | null;
+    onSelectChat: (chat: ChatItem) => void; 
+    mobileView?: boolean;
+    selectedChatId: string | null;
+    chatList: ChatItem[]; // Add this prop type
 }) {
-	const chats = initialChats;
-	const [searchTerm, setSearchTerm] = useState("");
+    const [searchTerm, setSearchTerm] = useState("");
 
-	const filteredChats = searchTerm
-		? chats.filter((chat) =>
-				chat.name.toLowerCase().includes(searchTerm.toLowerCase())
-		  )
-		: chats;
+    const filteredChats = searchTerm
+        ? chatList.filter((chat) =>
+                chat.name.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+        : chatList;
 
-	const handleChatSelection = (chat: ChatItem) => {
-		onSelectChat(chat); // Pass entire chat object
-	};
+    const handleChatSelection = (chat: ChatItem) => {
+        onSelectChat(chat);
+    };
 
-	return (
+    return (
 		<div
 			className={cn(
 				"flex flex-col h-full border-r bg-background",

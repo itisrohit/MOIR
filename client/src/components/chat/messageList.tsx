@@ -1,4 +1,4 @@
-import { Message } from "@/types/chat";
+import { Message } from "@/hooks/useMock";
 
 type MessageListProps = {
   messages: Message[];

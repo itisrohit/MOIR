@@ -5,6 +5,5 @@ import ChatLayout from "@/components/chat/chatLayout";
 
 export default function ChatDetailPage() {
   const { chatId } = useParams();
-  
-  return <ChatLayout initialChatId={Number(chatId)} />;
+  return <ChatLayout initialChatId={chatId as string} />;
 }
