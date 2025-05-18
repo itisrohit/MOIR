@@ -9,9 +9,9 @@ interface VLayoutProps {
 
 export default async function VLayout({ children }: VLayoutProps) {
   const cookieStore = await cookies();
-  const refreshToken = cookieStore.get('refreshToken')?.value;
+  const accessToken = cookieStore.get('accessToken')?.value;
   
-  if (!refreshToken) {
+  if (!accessToken) {
     redirect('/auth');
   }
   
