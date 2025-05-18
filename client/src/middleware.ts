@@ -24,3 +24,14 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: ['/v', '/v/:path*']
 }
+
+fetch('https://capstone-4haj.onrender.com/api/v1/user/profile', {
+  method: 'GET',
+  credentials: 'include' // Important to include cookies
+})
+.then(response => {
+  console.log('Status:', response.status);
+  return response.json();
+})
+.then(data => console.log('Data:', data))
+.catch(error => console.error('Error:', error));
