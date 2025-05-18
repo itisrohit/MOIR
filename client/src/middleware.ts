@@ -2,15 +2,25 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  const customHeader = request.headers.get('x-custom-header')
+  const path = request.nextUrl.pathname
   const accessToken = request.cookies.get('accessToken')?.value
   const refreshToken = request.cookies.get('refreshToken')?.value
-
-  console.log('Authorization:', authHeader)
-  console.log('X-Custom-Header:', customHeader)
-  console.log('Access Token:', accessToken)
-  console.log('Refresh Token:', refreshToken)
+  // Check if the route starts with /v and protect it
+  if (path.startsWith('/v')) {
+    // If neither token exists, redirect to login
+    if (!accessToken && !refreshToken) {
+      console.log('No token found, redirecting to login')
+      return NextResponse.redirect(new URL('/auth', request.url))
+    }
+    
+    // If at least one token exists, allow the request
+    console.log('Token found, allowing access')
+  }
 
   return NextResponse.next()
+}
+
+// Configure which routes this middleware applies to
+export const config = {
+  matcher: ['/v', '/v/:path*']
 }
