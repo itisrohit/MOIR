@@ -20,6 +20,9 @@ export default function AuthPage() {
   const [isFireflySpeaking, setIsFireflySpeaking] = useState(false);
   const [hasFlySpoken, setHasFlySpoken] = useState(false);
   
+  // Add isMobileView state
+  const [isMobileView, setIsMobileView] = useState(false);
+  
   // Use localStorage to permanently remember if greeting was shown
   const [hasShownInitialGreeting, setHasShownInitialGreeting] = useState(false);
   const greetingShownRef = useRef(false); // Use a ref to track during render cycle
@@ -30,7 +33,7 @@ export default function AuthPage() {
   const lastSpeechRef = useRef<number>(0);
   const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
 
-  // Handle mounting state with reset functionality
+  // Handle mounting state with reset functionality and check for mobile
   useEffect(() => {
     setIsMounted(true);
     
@@ -38,6 +41,17 @@ export default function AuthPage() {
     const hasShownBefore = localStorage.getItem("hasShownFireflyGreeting") === "true";
     setHasShownInitialGreeting(hasShownBefore);
     greetingShownRef.current = hasShownBefore;
+    
+    // Check if we're on mobile
+    const checkIfMobile = () => {
+      setIsMobileView(window.innerWidth < 768); // Standard mobile breakpoint
+    };
+    
+    // Initial check
+    checkIfMobile();
+    
+    // Listen for resize events
+    window.addEventListener('resize', checkIfMobile);
     
     // Reset functionality kept for developers
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -49,7 +63,11 @@ export default function AuthPage() {
     };
     
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', checkIfMobile);
+    };
   }, []);
 
   // Update CSS variables when firefly position changes
@@ -58,8 +76,12 @@ export default function AuthPage() {
     
     document.documentElement.style.setProperty('--firefly-x', `${fireflyPosition.x}px`);
     document.documentElement.style.setProperty('--firefly-y', `${fireflyPosition.y}px`);
-    document.documentElement.style.setProperty('--web-opacity', isFollowing ? '0.35' : '0.25');
-  }, [fireflyPosition, isFollowing, isMounted]);
+    
+    // Adjust web opacity based on mobile view as well
+    document.documentElement.style.setProperty('--web-opacity', 
+      isMobileView ? '0.3' : (isFollowing ? '0.35' : '0.25')
+    );
+  }, [fireflyPosition, isFollowing, isMounted, isMobileView]); // Add isMobileView to dependencies
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -88,11 +110,20 @@ export default function AuthPage() {
     
     // Delay the initial positioning
     setTimeout(() => {
-      // Position firefly
-      setFireflyPosition({ 
-        x: 900,
-        y: 300
-      });
+      // Position firefly - adjust based on device type
+      if (isMobileView) {
+        // Position at the top-right of the sign-in card as shown in screenshot
+        setFireflyPosition({ 
+          x: window.innerWidth * 0.7,
+          y: window.innerHeight * 0.3
+        });
+      } else {
+        // Desktop position (unchanged)
+        setFireflyPosition({ 
+          x: 900,
+          y: 300
+        });
+      }
       
       // Show the firefly after positioning
       setIsFireflyVisible(true);
@@ -104,13 +135,13 @@ export default function AuthPage() {
       }, 1000);
     }, 500);
     
-    // Start following after delay
+    // Start following after delay (only on desktop) - REDUCED FROM 3000ms to 1200ms
     const timer = setTimeout(() => {
-      setIsFollowing(true);
-    }, 3000);
+      setIsFollowing(!isMobileView);
+    }, 1200);
     
     return () => clearTimeout(timer);
-  }, [isMounted]);
+  }, [isMounted, isMobileView]);
 
   // Handle mouse movement
   useEffect(() => {
@@ -126,27 +157,34 @@ export default function AuthPage() {
     };
   }, [isMounted]);
 
-  // Firefly movement animation
+  // Fix the useEffect for animation
   useEffect(() => {
-    if (!isMounted || !isFollowing) return;
+    if (!isMounted || (!isFollowing && !isMobileView)) return;
     
     const animateFirefly = () => {
       setFireflyPosition(position => {
-        // Calculate distance between current position and mouse
+        // On mobile, keep the firefly in fixed position WITHOUT any speech
+        if (isMobileView) {
+          return position; // Keep current position
+        }
+        
+        // On desktop, follow mouse with existing logic
         const dx = mousePosition.x - position.x;
         const dy = mousePosition.y - position.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        // If the firefly is close to the cursor and hasn't shown initial greeting
+        // ONLY on desktop - check for initial greeting
+        // Add mobile check here
         const now = Date.now();
-        if (distance < 80 && !hasShownInitialGreeting && isFollowing && now - lastSpeechRef.current > 1000) {
+        if (!isMobileView && distance < 80 && !hasShownInitialGreeting && isFollowing && now - lastSpeechRef.current > 1000) {
+          // Speech logic only for desktop
           lastSpeechRef.current = now;
           setIsFireflySpeaking(true);
           setHasFlySpoken(true);
-          setHasShownInitialGreeting(true); // Mark as shown
+          setHasShownInitialGreeting(true);
           localStorage.setItem("hasShownFireflyGreeting", "true");
           
-          // Update the initial greeting messages
+          // Only update conversation history on desktop
           const initialMessages = [
             "YAAAAAY!! Cursy! Cursy! *happy bounce*", 
             "Oooooh! Cursy found me!! *giggles*", 
@@ -184,11 +222,11 @@ export default function AuthPage() {
         cancelAnimationFrame(requestRef.current);
       }
     };
-  }, [mousePosition, isFollowing, isMounted, hasShownInitialGreeting]);
+  }, [mousePosition, isFollowing, isMounted, hasShownInitialGreeting, isMobileView]);
 
   // Handle return messages
   useEffect(() => {
-    if (!isMounted || !isFollowing) return;
+    if (!isMounted || !isFollowing || isMobileView) return;
     
     const handleMouseDistance = () => {
       const dx = mousePosition.x - fireflyPosition.x;
@@ -224,7 +262,7 @@ export default function AuthPage() {
     
     const intervalId = setInterval(handleMouseDistance, 2000);
     return () => clearInterval(intervalId);
-  }, [mousePosition, fireflyPosition, hasFlySpoken, isFollowing, isMounted, conversationHistory, hasShownInitialGreeting]);
+  }, [mousePosition, fireflyPosition, hasFlySpoken, isFollowing, isMounted, conversationHistory, hasShownInitialGreeting, isMobileView]);
 
   // Animation variants
   const wingVariants = {
@@ -277,6 +315,7 @@ export default function AuthPage() {
 
   // Function to generate a response from Gemini API
   const generateFireflyResponse = async (prompt: string) => {
+    // Remove mobile check to allow responses on mobile
     setIsThinking(true);
     
     try {
@@ -338,7 +377,7 @@ export default function AuthPage() {
 
   // Add a click handler to the firefly to engage in conversation
   const handleFireflyClick = async () => {
-    if (isThinking) return;
+    if (isThinking) return; // Only check if thinking, allow on mobile now
     
     setIsFireflySpeaking(true);
     
@@ -356,7 +395,7 @@ export default function AuthPage() {
       return;
     }
     
-    // Generate a question with excited personality
+    // Generate responses on both mobile and desktop now
     generateFireflyResponse("Ask the user an EXCITED question or make a SUPER HAPPY comment! Be really childish and playful!").then(() => {
       setTimeout(() => {
         setIsFireflySpeaking(false);
@@ -496,7 +535,7 @@ export default function AuthPage() {
             />
           )}
 
-          {/* Speech bubble - only visible when speaking */}
+          {/* Speech bubble - now visible on mobile too */}
           {isFireflySpeaking && (
             <motion.div 
               className="absolute bottom-[110%] left-1/2 transform -translate-x-1/2 bg-blue-500/30 backdrop-blur-md px-4 py-2 rounded-xl shadow-lg border-2 border-blue-300/30 z-50 min-w-[140px] max-w-[220px]"
