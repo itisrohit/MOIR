@@ -21,7 +21,7 @@ export const useAuth = () => {
 
     const requireAuth = useCallback((redirectPath = '/auth') => {
         if (!isAuthenticated && !loading) {
-            router.push(redirectPath);
+            router.replace(redirectPath); // Changed from router.push to router.replace
             return false;
         }
         return true;
