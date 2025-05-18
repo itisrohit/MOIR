@@ -143,14 +143,14 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
   }
 
   return (
-    <div className="flex w-full h-[100dvh] overflow-hidden">
-      {/* Mobile view container with improved transition */}
+    <div className="flex w-full h-screen overflow-hidden">
+      {/* Mobile view container */}
       {isMobileView ? (
-        <div className="relative w-full h-[100dvh]">
+        <div className="relative w-full h-full">
           {/* Chat list */}
           <div 
             className={cn(
-              "absolute inset-0 w-full h-[100dvh] z-20 bg-background transition-transform duration-300 ease-out",
+              "absolute inset-0 w-full h-full z-20 bg-background transition-transform duration-300 ease-out",
               selectedChat !== null ? "-translate-x-full" : "translate-x-0"
             )}
           >
@@ -164,7 +164,7 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
           {/* Chat window */}
           <div 
             className={cn(
-              "absolute inset-0 w-full h-[100dvh] z-10 bg-background transition-transform duration-300 ease-out",
+              "absolute inset-0 w-full h-full z-10 bg-background transition-transform duration-300 ease-out",
               selectedChat !== null ? "translate-x-0" : "translate-x-full"
             )}
           >
@@ -178,7 +178,7 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
           </div>
         </div>
       ) : (
-        // Desktop view - regular side-by-side layout
+        // Desktop view remains unchanged
         <>
           <ChatList 
             onSelectChat={handleSelectChat}
