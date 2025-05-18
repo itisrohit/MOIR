@@ -57,12 +57,12 @@ export const registerUser = asyncHandler(
         sameSite: "none",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       })
-      .cookie("accessToken", accessToken, {
-        httpOnly: false,
-        secure: false,
-        sameSite: "none",
-        maxAge: 15 * 60 * 1000,
-      })
+      // .cookie("accessToken", accessToken, {
+      //   httpOnly: false,
+      //   secure: false,
+      //   sameSite: "none",
+      //   maxAge: 15 * 60 * 1000,
+      // })
       .status(201)
       .json(
         new ApiResponse(
@@ -113,12 +113,12 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
       sameSite: "none",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     })
-    .cookie("accessToken", accessToken, {
-      httpOnly: false,
-      secure: false,
-      sameSite: "none",
-      maxAge: 15 * 60 * 1000,
-    })
+    // .cookie("accessToken", accessToken, {
+    //   httpOnly: false,
+    //   secure: false,
+    //   sameSite: "none",
+    //   maxAge: 15 * 60 * 1000,
+    // })
     .status(200)
     .json(
       new ApiResponse(
@@ -178,9 +178,7 @@ export const getUserProfile = asyncHandler(
       throw new ApiError(401, "Unauthorized access");
     }
     const user = await User.findById(userId).select("-password");
-    if (!user) {
-      throw new ApiError(404, "User not found");
-    }
+
     res.status(200).json(
       new ApiResponse(
         200,
@@ -189,6 +187,66 @@ export const getUserProfile = asyncHandler(
           user,
         },
         "User profile fetched successfully"
+      )
+    );
+  }
+);
+
+
+
+export const refreshAccessToken = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+      const userId = req.user?._id;
+      if (!userId) {
+        throw new ApiError(401, "Unauthorized access");
+      };
+      const user = await User.findById(userId).select("-password"); 
+      if (!user) {
+        throw new ApiError(404, "Invalid refresh token");
+      }
+
+      const accessToken = user.generateAccessToken();
+
+      res.status(200).json(
+        new ApiResponse(
+          200,
+          {
+            success: true,
+            accessToken
+          },
+          "Access token refreshed successfully"
+        )
+      );
+   
+  }
+);
+
+
+// Get all users
+export const getAllUsers = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    if (!req.user?._id) {
+      throw new ApiError(401, "Unauthorized access");
+    }
+    
+    const users = await User.find()
+      .select("-password")
+      .sort({ createdAt: -1 });
+    
+    // Get total count for pagination
+    const totalUsers = await User.countDocuments();
+    
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          success: true,
+          users,
+          pagination: {
+            total: totalUsers,
+          }
+        },
+        "Users fetched successfully"
       )
     );
   }

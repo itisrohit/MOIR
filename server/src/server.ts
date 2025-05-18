@@ -2,13 +2,18 @@ import 'dotenv/config';
 import http from 'http';
 import { connectDB } from './config/db';
 import { app } from './app';
-
+import { initSocketServer } from './socket/index';
+import './socket/types';
 
 
 async function bootstrap(): Promise<void> {
   try {
     await connectDB();
     const server = http.createServer(app);
+    const io = initSocketServer(server);
+    
+    global.socketIo = io;
+    
     const PORT = process.env.PORT || 5000;
     
     server.listen(PORT, () => {
