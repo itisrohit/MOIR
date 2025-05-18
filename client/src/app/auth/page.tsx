@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import useAuth from "@/hooks/useAuth";
+import { toastSuccess, toastError } from "@/utility/toastStyle";
 
 export default function AuthPage() {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -32,6 +34,47 @@ export default function AuthPage() {
   const requestRef = useRef<number>();
   const lastSpeechRef = useRef<number>(0);
   const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+
+  // Add auth-related state
+  const [loginForm, setLoginForm] = useState({
+    email: "",
+    password: "",
+  });
+
+  const [signupForm, setSignupForm] = useState({
+    name: "",
+    email: "",
+    username: "",
+    password: "",
+  });
+
+  const [validationErrors, setValidationErrors] = useState<{
+    login: string | null;
+    signup: string | null;
+  }>({
+    login: null,
+    signup: null,
+  });
+
+  // Get auth methods
+  const { login, register, error, clearError, redirectIfAuthenticated } = useAuth();
+
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    redirectIfAuthenticated();
+  }, [redirectIfAuthenticated]);
+
+  // Show error from auth store as toast
+  useEffect(() => {
+    if (error) {
+      toastError("Authentication Failed", {
+        description: error,
+        duration: 5000,
+      });
+      clearError();
+    }
+  }, [error, clearError]);
 
   // Handle mounting state with reset functionality and check for mobile
   useEffect(() => {
@@ -83,18 +126,93 @@ export default function AuthPage() {
     );
   }, [fireflyPosition, isFollowing, isMounted, isMobileView]); // Add isMobileView to dependencies
 
+  // Login form handlers
+  const handleLoginInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setLoginForm(prev => ({ ...prev, [id]: value }));
+    setValidationErrors(prev => ({ ...prev, login: null }));
+  };
+
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    // Validate form
+    if (!loginForm.email || !loginForm.password) {
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        login: "Email and password are required" 
+      }));
+      return;
+    }
+    
     setIsLoading(true);
-    // Add login logic here
-    setTimeout(() => setIsLoading(false), 1000);
+    
+    try {
+      const success = await login({
+        email: loginForm.email,
+        password: loginForm.password
+      });
+      
+      if (success) {
+        toastSuccess("Login Successful", { 
+          description: "Welcome back!"
+        });
+      }
+    } catch  {
+      // Error will be handled by the useEffect with the error state
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Signup form handlers
+  const handleSignupInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    const fieldName = id.replace("signup-", "");
+    setSignupForm(prev => ({ ...prev, [fieldName]: value }));
+    setValidationErrors(prev => ({ ...prev, signup: null }));
   };
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    // Validate form
+    if (!signupForm.name || !signupForm.email || !signupForm.username || !signupForm.password) {
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        signup: "All fields are required" 
+      }));
+      return;
+    }
+    
+    if (signupForm.password.length < 6) {
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        signup: "Password must be at least 6 characters"
+      }));
+      return;
+    }
+    
     setIsLoading(true);
-    // Add signup logic here
-    setTimeout(() => setIsLoading(false), 1000);
+    
+    try {
+      const success = await register({
+        name: signupForm.name,
+        email: signupForm.email,
+        username: signupForm.username,
+        password: signupForm.password
+      });
+      
+      if (success) {
+        toastSuccess("Account Created", { 
+          description: "Welcome to our platform!" 
+        });
+      }
+    } catch  {
+      // Error will be handled by the useEffect with the error state
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const togglePasswordVisibility = () => {
@@ -613,6 +731,8 @@ export default function AuthPage() {
                           autoCapitalize="none"
                           autoComplete="email"
                           autoCorrect="off"
+                          value={loginForm.email}
+                          onChange={handleLoginInputChange}
                           required
                           className="bg-zinc-900/70 border-zinc-700/50 text-zinc-100 placeholder:text-zinc-500 focus:border-blue-400 focus:ring-blue-400/10 transition-all duration-200"
                         />
@@ -629,6 +749,8 @@ export default function AuthPage() {
                             id="password"
                             type={isPasswordVisible ? "text" : "password"}
                             autoComplete="current-password"
+                            value={loginForm.password}
+                            onChange={handleLoginInputChange}
                             required
                             className="bg-zinc-900/70 border-zinc-700/50 text-zinc-100 placeholder:text-zinc-500 focus:border-blue-400 focus:ring-blue-400/10 pr-10 transition-all duration-200"
                           />
@@ -645,6 +767,11 @@ export default function AuthPage() {
                           </button>
                         </div>
                       </div>
+                      
+                      {validationErrors.login && (
+                        <p className="text-sm text-red-500">{validationErrors.login}</p>
+                      )}
+                      
                       <Button 
                         type="submit" 
                         className="w-full mt-6 bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-600 hover:to-violet-600 text-white transition-all duration-300 shadow-lg shadow-blue-500/10 hover:shadow-blue-500/20" 
@@ -681,10 +808,12 @@ export default function AuthPage() {
                   <CardContent>
                     <form onSubmit={handleSignup} className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="name" className="text-zinc-300 text-sm">Full Name</Label>
+                        <Label htmlFor="signup-name" className="text-zinc-300 text-sm">Full Name</Label>
                         <Input
-                          id="name"
+                          id="signup-name"
                           placeholder="John Doe"
+                          value={signupForm.name}
+                          onChange={handleSignupInputChange}
                           required
                           className="bg-zinc-900/70 border-zinc-700/50 text-zinc-100 placeholder:text-zinc-500 focus:border-blue-400 focus:ring-blue-400/10 transition-all duration-200"
                         />
@@ -698,6 +827,21 @@ export default function AuthPage() {
                           autoCapitalize="none"
                           autoComplete="email"
                           autoCorrect="off"
+                          value={signupForm.email}
+                          onChange={handleSignupInputChange}
+                          required
+                          className="bg-zinc-900/70 border-zinc-700/50 text-zinc-100 placeholder:text-zinc-500 focus:border-blue-400 focus:ring-blue-400/10 transition-all duration-200"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="signup-username" className="text-zinc-300 text-sm">Username</Label>
+                        <Input
+                          id="signup-username"
+                          placeholder="johndoe"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          value={signupForm.username}
+                          onChange={handleSignupInputChange}
                           required
                           className="bg-zinc-900/70 border-zinc-700/50 text-zinc-100 placeholder:text-zinc-500 focus:border-blue-400 focus:ring-blue-400/10 transition-all duration-200"
                         />
@@ -709,6 +853,8 @@ export default function AuthPage() {
                             id="signup-password"
                             type={isPasswordVisible ? "text" : "password"}
                             autoComplete="new-password"
+                            value={signupForm.password}
+                            onChange={handleSignupInputChange}
                             required
                             className="bg-zinc-900/70 border-zinc-700/50 text-zinc-100 placeholder:text-zinc-500 focus:border-blue-400 focus:ring-blue-400/10 pr-10 transition-all duration-200"
                           />
@@ -725,6 +871,11 @@ export default function AuthPage() {
                           </button>
                         </div>
                       </div>
+                      
+                      {validationErrors.signup && (
+                        <p className="text-sm text-red-500">{validationErrors.signup}</p>
+                      )}
+                      
                       <Button 
                         type="submit" 
                         className="w-full mt-6 bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-600 hover:to-violet-600 text-white transition-all duration-300 shadow-lg shadow-blue-500/10 hover:shadow-blue-500/20" 

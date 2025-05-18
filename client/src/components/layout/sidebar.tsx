@@ -7,6 +7,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import useAuth from "@/hooks/useAuth"; // Import the auth hook
+import { toastSuccess } from "@/utility/toastStyle";
 
 // Create a context to expose the sidebar toggle function
 export const SidebarContext = createContext({
@@ -24,12 +26,23 @@ export function useSidebar() {
 export function Sidebar() {
   const [activeItem, setActiveItem] = useState("Chat");
   const { isVisible, toggleSidebar, messageViewActive } = useSidebar();
+  const { logout, user } = useAuth(); // Get logout function and user from auth hook
 
   const navItems = [
     { name: "Chat", icon: <MessageSquare className="h-5 w-5" /> },
     { name: "Friends", icon: <Users className="h-5 w-5" /> },
     { name: "Notifications", icon: <Bell className="h-5 w-5" /> },
   ];
+
+  // Handle logout with confirmation
+  const handleLogout = () => {
+    // Remove the confirmation dialog and directly log out
+    toastSuccess("Logged Out", {
+      description: "You have been successfully logged out",
+      duration: 3000
+    });
+    logout();
+  };
 
   return (
     <>
@@ -96,8 +109,8 @@ export function Sidebar() {
         <div className="flex justify-center items-center py-6">
           <div className="relative">
             <Avatar className="h-12 w-12 border-2 border-background shadow-sm">
-              <AvatarImage src="https://github.com/shadcn.png" alt="Profile" />
-              <AvatarFallback>ME</AvatarFallback>
+              <AvatarImage src={user?.image || "https://github.com/shadcn.png"} alt={user?.name || "Profile"} />
+              <AvatarFallback>{user?.name?.slice(0, 2).toUpperCase() || "ME"}</AvatarFallback>
             </Avatar>
             <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full bg-green-500 border-2 border-background" 
                   aria-label="Online status indicator">
@@ -156,12 +169,13 @@ export function Sidebar() {
               </TooltipContent>
             </Tooltip>
 
-            {/* Logout Icon */}
+            {/* Logout Icon with logout functionality */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
+                  onClick={handleLogout}
                   className="h-11 w-11 rounded-xl text-red-500 hover:bg-red-500/10 hover:text-red-600"
                 >
                   <LogOut className="h-5 w-5" />
