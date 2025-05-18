@@ -404,7 +404,7 @@ export default function AuthPage() {
   };
   
   return (
-    <div className="flex min-h-screen w-full items-center justify-center overflow-hidden relative bg-gradient-to-b from-zinc-900 to-black py-12 px-4 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen w-full items-center justify-center overflow-hidden relative bg-gradient-to-b from-zinc-900 to-black py-12 px-4 sm:px-6 lg:px-8" style={{ height: '100vh' }}>
       {/* Premium background elements */}
       <div className="absolute inset-0 z-0">
         {/* Base background */}
@@ -418,8 +418,8 @@ export default function AuthPage() {
         <div className="absolute bottom-1/3 right-1/5 w-[30rem] h-[30rem] bg-violet-500/5 rounded-full blur-[150px]"></div>
       </div>
       
-      {/* Firefly SVG with Framer Motion - Only render when mounted */}
-      {isMounted && (
+      {/* Firefly SVG with Framer Motion - Only render when mounted AND not on mobile */}
+      {isMounted && !isMobileView && (
         <motion.div 
           className="firefly-container z-50 absolute cursor-pointer"
           style={{ 
@@ -757,21 +757,38 @@ export default function AuthPage() {
           --firefly-pulse: 0;
         }
 
-        /* Add a highlight at the firefly's initial position */
-        .premium-hex-web::before {
-          content: '';
-          position: fixed; /* Change to fixed positioning */
-          top: 300px;      /* Match the firefly Y position */
-          left: 900px;     /* Match the firefly X position */
-          width: 100px;    /* Much larger highlight */
-          height: 100px;   /* Much larger highlight */
-          border-radius: 50%;
-          background: radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(56,189,248,0.6) 40%, rgba(139,92,246,0.2) 70%, rgba(0,0,0,0) 100%);
-          transform: translate(-50%, -50%);
-          filter: blur(10px);
-          z-index: 5;
-          opacity: ${isFireflyVisible ? 0.9 : 0}; /* Control visibility with the same state */
-          transition: opacity 0.5s ease; /* Smooth fade-in */
+        /* Fix mobile height and overflow issues */
+        html, body {
+          height: 100%;
+          overflow: hidden;
+        }
+
+        @media (max-width: 768px) {
+          body {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+          }
+        }
+
+        /* Add a highlight at the firefly's initial position - only on desktop */
+        @media (min-width: 768px) {
+          .premium-hex-web::before {
+            content: '';
+            position: fixed;
+            top: 300px;
+            left: 900px;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(56,189,248,0.6) 40%, rgba(139,92,246,0.2) 70%, rgba(0,0,0,0) 100%);
+            transform: translate(-50%, -50%);
+            filter: blur(10px);
+            z-index: 5;
+            opacity: ${isFireflyVisible ? 0.9 : 0};
+            transition: opacity 0.5s ease;
+          }
         }
 
         .premium-hex-web {
@@ -806,4 +823,3 @@ export default function AuthPage() {
     </div>
   );
 }
-
