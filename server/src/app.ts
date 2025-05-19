@@ -25,7 +25,7 @@ app.use(`${API_PREFIX}/user`, userRoutes);
 //-------------------------------------------------
 
 // Health check route
-app.get("/health", (_: Request, res: Response) => {
+app.get("/api/v1/health", (_: Request, res: Response) => {
   res.status(200).json({
     status: "success",
     message: "Server is up and running",
