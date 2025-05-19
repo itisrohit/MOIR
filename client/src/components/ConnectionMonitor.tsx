@@ -19,12 +19,14 @@ export default function ConnectionMonitor() {
       if (!isMounted || isRedirecting) return;
       
       try {
+        // Change this to use a valid endpoint
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         
-        const response = await fetch(`${apiUrl}`, {
-          method: 'HEAD',
+        // Use GET instead of HEAD and use '/user/login' which should always exist
+        const response = await fetch(`${apiUrl}/user/login`, {
+          method: 'GET', // More widely supported than HEAD
           signal: controller.signal,
           cache: 'no-store',
           headers: { 'Cache-Control': 'no-cache' }
@@ -32,9 +34,8 @@ export default function ConnectionMonitor() {
         
         clearTimeout(timeoutId);
         
-        // Check for server errors (5xx)
+        // Consider any response under 500 as "server is up" - even 401 means server is working
         if (response.status >= 500) {
-          // Server returned 5xx error - it's having issues
           handleServerDown();
         }
       } catch {

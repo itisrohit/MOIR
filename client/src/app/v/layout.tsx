@@ -13,57 +13,36 @@ interface VLayoutProps {
 export default function VLayout({ children }: VLayoutProps) {
   const { isAuthenticated, loading, user, verifyUser } = useAuth();
   const router = useRouter();
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Component mount log
+  // Separate effect for hydration
   useEffect(() => {
-    console.log('🔄 VLayout mounted with auth state:', { 
-      isAuthenticated, 
-      hasUser: !!user, 
-      loading 
-    });
-    
-    return () => {
-      console.log('🛑 VLayout unmounting');
-    };
+    setIsInitialized(true);
+    console.log("💧 Hydration completed");
   }, []);
 
-  // Wait for hydration first
+  // Auth handling effect
   useEffect(() => {
-    setIsHydrated(true);
-    console.log('💧 Hydration completed');
-  }, []);
-
-  // Authentication verification
-  useEffect(() => {
-    console.log('👀 Auth state changed:', { isAuthenticated, loading, hasUser: !!user });
-    
-    if (isHydrated && isAuthenticated) {
-      console.log('🔑 Authenticated state detected, verifying user token...');
-      verifyUser().then(() => {
-        console.log('✅ Verification completed successfully');
-      }).catch((error) => {
-        console.log('❌ Verification failed:', error);
-        console.log('🚪 Redirecting to login page after verification failure');
-        router.replace('/auth');
-      });
-    } else if (isHydrated && !loading && !isAuthenticated) {
-      console.log('🚫 Not authenticated, redirecting to login');
-      router.replace('/auth');
+    // Skip if not hydrated yet
+    if (!isInitialized) {
+      return;
     }
-  }, [isHydrated, isAuthenticated, loading, verifyUser, router, user]);
 
-  // Add render state logs
-  console.log('🖥️ VLayout rendering with state:', { 
-    isAuthenticated, 
-    loading, 
-    isHydrated, 
-    hasUser: !!user 
-  });
+    // Handle auth state
+    if (isAuthenticated) {
+      // Verify token once
+      verifyUser().catch(() => {
+        // On failure, redirect happens automatically via the interceptor & localLogout
+        router.replace("/auth");
+      });
+    } else if (!loading) {
+      // Not authenticated and not in loading state
+      router.replace("/auth");
+    }
+  }, [isAuthenticated, isInitialized, router, verifyUser]);
 
-  // Show skeleton during loading states
-  if (loading || !isHydrated || (isAuthenticated && !user)) {
-    console.log('⏳ Rendering loading skeleton');
+  // Show loading state
+  if (loading || !isInitialized || (isAuthenticated && !user)) {
     return (
       <div className="w-full h-screen p-4 space-y-4">
         <Skeleton className="h-8 w-full" />
@@ -76,11 +55,9 @@ export default function VLayout({ children }: VLayoutProps) {
 
   // Not authenticated, render nothing while redirecting
   if (!isAuthenticated) {
-    console.log('🚶‍♂️ Rendering null during redirect');
     return null;
   }
 
-  console.log('✨ Rendering main layout with authenticated user:', user?.username);
-  // Authentication verified, render the layout
+  // Auth verified, render the layout
   return <MainLayout>{children}</MainLayout>;
 }

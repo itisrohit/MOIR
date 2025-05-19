@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveRedirectUrl, getTimeoutPageUrl, getRedirectUrl, clearRedirectUrl } from '@/utility/url-helper';
+import axios from 'axios';
 
 interface NetworkMonitorOptions {
   /** Timeout duration in seconds for display on timeout page */
@@ -17,6 +18,7 @@ interface NetworkMonitorOptions {
 export const useNetworkMonitor = ({
   timeoutDuration = 30,
   autoRedirect = true,
+  // Default to API base URL
   apiEndpoint = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'
 }: NetworkMonitorOptions = {}) => {
   const router = useRouter();
@@ -32,24 +34,20 @@ export const useNetworkMonitor = ({
     if (typeof window === 'undefined') return true; // SSR
     
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
-      // Perform the fetch request
-      const response = await fetch(apiEndpoint, { 
-        method: 'HEAD', 
-        signal: controller.signal,
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' }
+      // Use axios with a specific endpoint that always exists
+      await axios.get(`${apiEndpoint}/user/login`, {
+        timeout: 5000,
+        validateStatus: (status) => status < 500 // Consider any response below 500 as "server is up"
       });
       
-      clearTimeout(timeoutId);
-      
-      // Actually use the response to determine status
-      // Any response means server is available, even if it returns an error
-      return response.status < 599; // Any status below 599 means server is responding
-    } catch {
-      // Network errors or aborted requests mean server is unreachable
+      // Any response (even 401) means the server is running
+      return true;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        // If we got ANY response, the server is still up (even errors like 401, 404)
+        return error.response !== undefined;
+      }
+      // No response = server down
       return false;
     }
   }, [apiEndpoint]);
