@@ -186,6 +186,7 @@ export const useAuthStore = create<AuthStore>()(
             localLogout(); 
           }
         } catch (error) {
+          console.log('❌ Error in verifyUser:', error);
           const errorMessage = error instanceof Error ? error.message : 'Verification failed';
           set({ 
             error: errorMessage, 
@@ -194,7 +195,8 @@ export const useAuthStore = create<AuthStore>()(
             accessToken: null,
             isAuthenticated: false,
           });
-          localLogout(); // Move this here
+          console.log('🔄 Calling localLogout from verifyUser catch block');
+          localLogout();
         }
       },
 
@@ -254,6 +256,7 @@ api.interceptors.request.use(
 // Add response interceptor to handle unauthorized responses
 // Add a method for local logout (without server call)
 const localLogout = () => {
+  console.log('⚠️ localLogout called - clearing authentication state');
   useAuthStore.setState({
     user: null,
     accessToken: null,
@@ -270,13 +273,14 @@ const localLogout = () => {
   
   // Clear localStorage
   localStorage.removeItem('auth-storage');
+  console.log('✅ Authentication state cleared');
 };
 
 api.interceptors.response.use(
   response => response,
   error => {
     if (error.response?.status === 401 && useAuthStore.getState().isAuthenticated) {
-      // Use local logout instead of API call when we already know auth failed
+      console.log('🚫 401 Unauthorized response detected, initiating logout');
       localLogout();
     }
     return Promise.reject(error);
