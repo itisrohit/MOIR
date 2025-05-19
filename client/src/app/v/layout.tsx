@@ -11,43 +11,31 @@ interface VLayoutProps {
 }
 
 export default function VLayout({ children }: VLayoutProps) {
-  const { isAuthenticated, loading, verifyUser } = useAuth();
+  const { isAuthenticated, loading, user, verifyUser } = useAuth();
   const router = useRouter();
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // First, wait for component hydration
+  // Wait for hydration first
   useEffect(() => {
     setIsHydrated(true);
   }, []);
 
-  // Periodically verify token validity
+  // Authentication verification
   useEffect(() => {
-    // Initial verification
     if (isHydrated && isAuthenticated) {
-      console.log('🔍 Running initial token verification');
-      verifyUser();
-    }
-    
-    // Set up interval for periodic verification
-    const tokenCheckInterval = setInterval(() => {
-      if (isAuthenticated) {
-        console.log('⏱️ Running periodic token verification');
-        verifyUser();
-      }
-    }, 60000); // Check every minute
-    
-    return () => clearInterval(tokenCheckInterval);
-  }, [isHydrated, isAuthenticated, verifyUser]);
-
-  // Then, only redirect if not authenticated and hydration is complete
-  useEffect(() => {
-    if (isHydrated && !loading && !isAuthenticated) {
+      // Let verifyUser handle all auth logic, including token checking and error handling
+      verifyUser().catch(() => {
+        // Verification already handles logout in error cases, just redirect
+        router.replace('/auth');
+      });
+    } else if (isHydrated && !loading && !isAuthenticated) {
+      // Not authenticated and not loading, redirect to login
       router.replace('/auth');
     }
-  }, [isAuthenticated, loading, router, isHydrated]);
+  }, [isHydrated, isAuthenticated, loading, verifyUser, router]);
 
-  // Show skeleton during initial load
-  if (loading || !isHydrated) {
+  // Show skeleton during loading states
+  if (loading || !isHydrated || (isAuthenticated && !user)) {
     return (
       <div className="w-full h-screen p-4 space-y-4">
         <Skeleton className="h-8 w-full" />
@@ -58,9 +46,11 @@ export default function VLayout({ children }: VLayoutProps) {
     );
   }
 
+  // Not authenticated, render nothing while redirecting
   if (!isAuthenticated) {
-    return null; 
+    return null;
   }
 
+  // Authentication verified, render the layout
   return <MainLayout>{children}</MainLayout>;
 }

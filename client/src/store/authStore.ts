@@ -40,6 +40,7 @@ interface AuthStore {
   logout: () => Promise<void>;
   verifyUser: () => Promise<void>;
   clearError: () => void;
+  localLogout: () => void; 
 }
 
 // Create axios instance with base URL
@@ -47,7 +48,6 @@ const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
 });
-
 
 // Create the store with separate persistence configurations
 export const useAuthStore = create<AuthStore>()(
@@ -115,24 +115,8 @@ export const useAuthStore = create<AuthStore>()(
           const response = await api.post<AuthResponse>('/user/logout');
           
           if (response.data.success) {
-            // Clear store state
-            set({
-              user: null,
-              accessToken: null,
-              isAuthenticated: false,
-              loading: false,
-            });
-            
-            // Clear cookies (all cookies in the domain)
-            document.cookie.split(";").forEach((c) => {
-              document.cookie = c
-                .replace(/^ +/, "")
-                .replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
-            });
-            
-            // Clear localStorage (or just clear the auth-storage item)
-            localStorage.removeItem('auth-storage');
-            
+            // Use the existing localLogout function
+            get().localLogout();
           } else {
             set({ error: response.data.message, loading: false });
           }
@@ -141,20 +125,8 @@ export const useAuthStore = create<AuthStore>()(
           set({ error: errorMessage, loading: false });
           
           // Force logout on client side even if API call fails
-          set({
-            user: null,
-            accessToken: null,
-            isAuthenticated: false,
-          });
-          
-          // Still clear cookies and localStorage even if API call fails
-          document.cookie.split(";").forEach((c) => {
-            document.cookie = c
-              .replace(/^ +/, "")
-              .replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
-          });
-          
-          localStorage.removeItem('auth-storage');
+          console.log('⚠️ Server logout failed, falling back to client-side logout');
+          get().localLogout();
         }
       },
 
@@ -189,7 +161,7 @@ export const useAuthStore = create<AuthStore>()(
               accessToken: null,
               isAuthenticated: false,
             });
-            localLogout(); 
+            get().localLogout(); 
           }
         } catch (error) {
           console.log('❌ Exception in verifyUser:', error);
@@ -208,12 +180,31 @@ export const useAuthStore = create<AuthStore>()(
             isAuthenticated: false,
           });
           console.log('🔄 Calling localLogout from verifyUser catch block');
-          localLogout();
+          get().localLogout();
         }
       },
 
       clearError: () => {
         set({ error: null });
+      },
+
+      // Add localLogout as a store method
+      localLogout: () => {
+        console.log('⚠️ localLogout called');
+        set({
+          user: null,
+          accessToken: null,
+          isAuthenticated: false,
+          loading: false,
+        });
+        
+        // Clear cookies and localStorage
+        document.cookie.split(";").forEach((c) => {
+          document.cookie = c
+            .replace(/^ +/, "")
+            .replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
+        });
+        localStorage.removeItem('auth-storage');
       },
     }),
     {
@@ -266,34 +257,12 @@ api.interceptors.request.use(
 );
 
 // Add response interceptor to handle unauthorized responses
-// Add a method for local logout (without server call)
-const localLogout = () => {
-  console.log('⚠️ localLogout called - clearing authentication state');
-  useAuthStore.setState({
-    user: null,
-    accessToken: null,
-    isAuthenticated: false,
-    loading: false,
-  });
-  
-  // Clear cookies
-  document.cookie.split(";").forEach((c) => {
-    document.cookie = c
-      .replace(/^ +/, "")
-      .replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
-  });
-  
-  // Clear localStorage
-  localStorage.removeItem('auth-storage');
-  console.log('✅ Authentication state cleared');
-};
-
 api.interceptors.response.use(
   response => response,
   error => {
     if (error.response?.status === 401 && useAuthStore.getState().isAuthenticated) {
-      console.log('🚫 401 Unauthorized response detected, initiating logout');
-      localLogout();
+      console.log('🚫 401 Unauthorized response detected');
+      useAuthStore.getState().localLogout();
     }
     return Promise.reject(error);
   }
