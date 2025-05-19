@@ -35,15 +35,15 @@ interface UserStore {
   totalUsers: number;
   loading: boolean;
   error: string | null;
-  chatMessages: Record<string, Message[]>; // Add this to store messages
-  chatOrderCache: string[];               // Add this to store chat order
-  unreadCounts: Record<string, number>; // Add this to track unread messages
+  chatMessages: Record<string, Message[]>; // to store messages
+  chatOrderCache: string[];               //  to store chat order
+  unreadCounts: Record<string, number>; //  to track unread messages
   
   fetchAllUsers: () => Promise<void>;
   clearError: () => void;
   updateChatMessages: (chatId: string, messages: Message[], isIncoming?: boolean) => void;
   updateChatOrder: (chatId: string) => void;
-  markChatAsRead: (chatId: string) => void; // Add this function
+  markChatAsRead: (chatId: string) => void;
 }
 
 // Create axios instance with base URL

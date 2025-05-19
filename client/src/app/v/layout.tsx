@@ -11,7 +11,7 @@ interface VLayoutProps {
 }
 
 export default function VLayout({ children }: VLayoutProps) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, verifyUser } = useAuth();
   const router = useRouter();
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -19,6 +19,23 @@ export default function VLayout({ children }: VLayoutProps) {
   useEffect(() => {
     setIsHydrated(true);
   }, []);
+
+  // Periodically verify token validity
+  useEffect(() => {
+    // Initial verification
+    if (isHydrated && isAuthenticated) {
+      verifyUser();
+    }
+    
+    // Set up interval for periodic verification
+    const tokenCheckInterval = setInterval(() => {
+      if (isAuthenticated) {
+        verifyUser();
+      }
+    }, 60000); // Check every minute
+    
+    return () => clearInterval(tokenCheckInterval);
+  }, [isHydrated, isAuthenticated, verifyUser]);
 
   // Then, only redirect if not authenticated and hydration is complete
   useEffect(() => {
