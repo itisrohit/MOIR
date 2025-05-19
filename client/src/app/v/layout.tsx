@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import MainLayout from "@/components/layout/main_layout";
 import useAuth from "@/hooks/useAuth";
@@ -14,6 +14,8 @@ export default function VLayout({ children }: VLayoutProps) {
   const { isAuthenticated, loading, user, verifyUser } = useAuth();
   const router = useRouter();
   const [isInitialized, setIsInitialized] = useState(false);
+  // Add ref to prevent verification loops
+  const hasVerified = useRef(false);
 
   // Separate effect for hydration
   useEffect(() => {
@@ -29,17 +31,20 @@ export default function VLayout({ children }: VLayoutProps) {
     }
 
     // Handle auth state
-    if (isAuthenticated) {
+    if (isAuthenticated && !hasVerified.current) {
+      // Mark verification as done to prevent loops
+      hasVerified.current = true;
+
       // Verify token once
       verifyUser().catch(() => {
         // On failure, redirect happens automatically via the interceptor & localLogout
         router.replace("/auth");
       });
-    } else if (!loading) {
-      // Not authenticated and not in loading state
+    } else if (!loading && !isAuthenticated) {
+      // Not authenticated and not loading
       router.replace("/auth");
     }
-  }, [isAuthenticated, isInitialized, router, verifyUser]);
+  }, [isAuthenticated, isInitialized, loading, router, verifyUser]);
 
   // Show loading state
   if (loading || !isInitialized || (isAuthenticated && !user)) {

@@ -34,17 +34,23 @@ export const useNetworkMonitor = ({
     if (typeof window === 'undefined') return true; // SSR
     
     try {
-      // Use axios with a specific endpoint that always exists
-      await axios.get(`${apiEndpoint}/user/login`, {
+      // Use the dedicated health endpoint
+      const healthEndpoint = `${apiEndpoint}/health`;
+      console.log('🩺 Checking server health:', healthEndpoint);
+      
+      const response = await axios({
+        method: 'GET',
+        url: healthEndpoint,
         timeout: 5000,
-        validateStatus: (status) => status < 500 // Consider any response below 500 as "server is up"
+        validateStatus: (status) => status < 500
       });
       
-      // Any response (even 401) means the server is running
+      console.log('✅ Server health check response:', response.status);
       return true;
     } catch (error) {
+      console.log('❌ Server health check failed:', error);
       if (axios.isAxiosError(error)) {
-        // If we got ANY response, the server is still up (even errors like 401, 404)
+        // If we got ANY response, the server is still up
         return error.response !== undefined;
       }
       // No response = server down

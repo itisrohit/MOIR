@@ -58,8 +58,9 @@ function TimeoutContent() {
       const timeoutId = setTimeout(() => controller.abort(), 5000);
       
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
-      const response = await fetch(`${apiUrl}`, {
-        method: 'HEAD',
+      // Use the dedicated health endpoint that returns 200
+      const response = await fetch(`${apiUrl}/health`, {
+        method: 'GET', // Use GET instead of HEAD
         signal: controller.signal,
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' }
@@ -67,7 +68,9 @@ function TimeoutContent() {
       
       clearTimeout(timeoutId);
       
-      if (response.status < 500) {
+      if (response.ok) {
+        // Server is healthy
+        console.log('✅ Server health check successful, returning to app');
         const redirectUrl = getRedirectUrl();
         clearRedirectUrl();
         router.replace(redirectUrl || '/');
@@ -75,15 +78,18 @@ function TimeoutContent() {
       } else {
         throw new Error(`Server error: ${response.status}`);
       }
-    } catch  {
+    } catch (error) {
       setConnectionAttempts(prev => prev + 1);
       
+      // More user-friendly error message
       const message = connectionAttempts > 2 
         ? 'Server still appears to be down. Please try again later.'
         : 'Cannot connect to server. Retrying...';
         
       setError(message);
+      console.log('❌ Server health check failed:', error);
       
+      // Reset countdown timer if it hit zero
       if (secondsLeft <= 0) {
         const nextInterval = Math.max(5, Math.min(15, totalSeconds - connectionAttempts * 5));
         setSecondsLeft(nextInterval);
