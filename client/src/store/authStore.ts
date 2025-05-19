@@ -161,20 +161,26 @@ export const useAuthStore = create<AuthStore>()(
       verifyUser: async () => {
         // Only attempt verification if we have a token
         if (!get().accessToken) {
+          console.log('⚠️ No access token found, skipping verification');
           return;
         }
         
+        console.log('🔄 Starting user verification with token');
         try {
           set({ loading: true, error: null });
+          console.log('📡 Making API request to /user/profile');
           const response = await api.get<AuthResponse>('/user/profile');
+          console.log('✅ API response received:', response.status);
           
           if (response.data.success) {
+            console.log('✅ Verification successful');
             set({
               user: response.data.data.user || null,
               isAuthenticated: true,
               loading: false,
             });
           } else {
+            console.log('❌ Verification failed with error message:', response.data.message);
             // If verification fails, log the user out
             set({ 
               error: response.data.message, 
@@ -186,7 +192,13 @@ export const useAuthStore = create<AuthStore>()(
             localLogout(); 
           }
         } catch (error) {
-          console.log('❌ Error in verifyUser:', error);
+          console.log('❌ Exception in verifyUser:', error);
+          // Log more details about the error
+          if (axios.isAxiosError(error)) {
+            console.log('Status:', error.response?.status);
+            console.log('Data:', error.response?.data);
+          }
+          
           const errorMessage = error instanceof Error ? error.message : 'Verification failed';
           set({ 
             error: errorMessage, 

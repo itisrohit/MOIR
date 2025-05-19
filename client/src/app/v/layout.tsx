@@ -24,12 +24,14 @@ export default function VLayout({ children }: VLayoutProps) {
   useEffect(() => {
     // Initial verification
     if (isHydrated && isAuthenticated) {
+      console.log('🔍 Running initial token verification');
       verifyUser();
     }
     
     // Set up interval for periodic verification
     const tokenCheckInterval = setInterval(() => {
       if (isAuthenticated) {
+        console.log('⏱️ Running periodic token verification');
         verifyUser();
       }
     }, 60000); // Check every minute
