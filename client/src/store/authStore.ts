@@ -131,13 +131,8 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       verifyUser: async () => {
-        // Only attempt verification if we have a token
-        if (!get().accessToken) {
-          console.log('⚠️ No access token found, skipping verification');
-          return;
-        }
-        
-        console.log('🔄 Starting user verification with token');
+        // Remove the early return and token check
+        console.log('🔄 Starting user verification');
         try {
           set({ loading: true, error: null });
           console.log('📡 Making API request to /user/profile');
@@ -164,6 +159,7 @@ export const useAuthStore = create<AuthStore>()(
             get().localLogout(); 
           }
         } catch (error) {
+          // This catch block will handle missing token errors automatically
           console.log('❌ Exception in verifyUser:', error);
           // Log more details about the error
           if (axios.isAxiosError(error)) {
