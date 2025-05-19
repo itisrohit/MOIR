@@ -183,6 +183,7 @@ export const useAuthStore = create<AuthStore>()(
               accessToken: null,
               isAuthenticated: false,
             });
+            localLogout(); 
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Verification failed';
@@ -193,8 +194,7 @@ export const useAuthStore = create<AuthStore>()(
             accessToken: null,
             isAuthenticated: false,
           });
-        } finally {
-          localLogout();
+          localLogout(); // Move this here
         }
       },
 
