@@ -263,31 +263,48 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   // Set the selected chat
   setSelectedChat: (chatId: string | null) => {
-    set({ 
-      selectedChatId: chatId,
-      // If selecting a chat, mark it as read
-      ...(chatId && { 
-        unreadCounts: {
-          ...get().unreadCounts,
-          [chatId]: 0
-        }
-      })
-    });
-    
-    // If a chat is selected, fetch its messages
+    // First set the selected chat ID to update the UI immediately
+    set({ selectedChatId: chatId });
+
+    // Then handle message loading and read states
     if (chatId) {
-      get().fetchMessages(chatId);
+      // Mark as read
+      set(state => ({
+        unreadCounts: {
+          ...state.unreadCounts,
+          [chatId]: 0
+        },
+        // Also update the chatList
+        chatList: state.chatList.map(chat => 
+          chat.id === chatId 
+            ? { ...chat, unread: 0 } 
+            : chat
+        )
+      }));
+
+      // Only fetch messages if we don't already have them cached
+      if (!get().chatMessages[chatId] || get().chatMessages[chatId].length === 0) {
+        get().fetchMessages(chatId);
+      }
     }
   },
 
   // Mark a chat as read
   markChatAsRead: (chatId: string) => {
     set(state => ({
+      // Update the unreadCounts object
       unreadCounts: {
         ...state.unreadCounts,
         [chatId]: 0
-      }
+      },
+      // ALSO update the unread count in the chatList items
+      chatList: state.chatList.map(chat => 
+        chat.id === chatId 
+          ? { ...chat, unread: 0 } 
+          : chat
+      )
     }));
+    
   },
   
   // Update chat order - similar to mockStore's updateChatOrder

@@ -7,8 +7,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import useAuth from "@/hooks/useAuth"; // Import the auth hook
+import useAuth from "@/hooks/useAuth";
 import { toastSuccess } from "@/utility/toastStyle";
+import { useChatStore } from "@/store/chatStore"; // Import useChatStore
 
 // Create a context to expose the sidebar toggle function
 export const SidebarContext = createContext({
@@ -26,17 +27,25 @@ export function useSidebar() {
 export function Sidebar() {
   const [activeItem, setActiveItem] = useState("Chat");
   const { isVisible, toggleSidebar, messageViewActive } = useSidebar();
-  const { logout, user } = useAuth(); // Get logout function and user from auth hook
+  const { logout, user } = useAuth();
+  
+  // Get unread counts from chat store
+  const { unreadCounts } = useChatStore();
+  
+  // Calculate total unread messages
+  const totalUnreadMessages = Object.values(unreadCounts).reduce((total, count) => total + count, 0);
 
   const navItems = [
-    { name: "Chat", icon: <MessageSquare className="h-5 w-5" /> },
+    { 
+      name: "Chat", 
+      icon: <MessageSquare className="h-5 w-5" />,
+      badge: totalUnreadMessages > 0 ? totalUnreadMessages : null  
+    },
     { name: "Friends", icon: <Users className="h-5 w-5" /> },
     { name: "Notifications", icon: <Bell className="h-5 w-5" /> },
   ];
 
-  // Handle logout with confirmation
   const handleLogout = () => {
-    // Remove the confirmation dialog and directly log out
     toastSuccess("Logged Out", {
       description: "You have been successfully logged out",
       duration: 3000
@@ -46,12 +55,11 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Desktop toggle button - unchanged */}
+      {/* Desktop toggle button */}
       <Button
         variant="ghost"
         onClick={toggleSidebar}
         className={cn(
-          // Desktop styling remains the same
           "hidden md:flex fixed z-40 items-center justify-center p-0",
           "h-12 w-6 border border-l-0 border-border/60",
           "bg-background/95 backdrop-blur-sm shadow-sm",
@@ -70,7 +78,7 @@ export function Sidebar() {
         )}
       </Button>
 
-      {/* Mobile toggle button - hide when message view is active */}
+      {/* Mobile toggle button */}
       <Button
         variant="ghost"
         onClick={toggleSidebar}
@@ -80,7 +88,6 @@ export function Sidebar() {
           "bg-background/95 backdrop-blur-sm shadow-md border border-border/60",
           "transition-all duration-300 ease-in-out",
           isVisible ? "rotate-180" : "rotate-0",
-          // Hide when message view is active
           messageViewActive && "hidden"
         )}
         aria-label={isVisible ? "Close menu" : "Open menu"}
@@ -88,7 +95,7 @@ export function Sidebar() {
         <ChevronLeft className="h-5 w-5 text-muted-foreground" />
       </Button>
       
-      {/* Overlay for mobile - blurs the background when sidebar is open */}
+      {/* Overlay for mobile */}
       <div
         className={cn(
           "md:hidden fixed inset-0 bg-background/80 backdrop-blur-sm z-30",
@@ -102,7 +109,7 @@ export function Sidebar() {
       {/* Sidebar */}
       <div className={cn(
         "flex flex-col bg-background h-screen fixed left-0 top-0 bottom-0 z-40 transition-all duration-300 ease-in-out",
-        "w-[120px] md:w-[70px] shadow-sm border-r border-border/40", // Reduced width for mobile
+        "w-[120px] md:w-[70px] shadow-sm border-r border-border/40",
         isVisible ? "translate-x-0" : "-translate-x-full",
       )}>
         {/* User profile section */}
@@ -112,15 +119,13 @@ export function Sidebar() {
               <AvatarImage src={user?.image || "https://github.com/shadcn.png"} alt={user?.name || "Profile"} />
               <AvatarFallback>{user?.name?.slice(0, 2).toUpperCase() || "ME"}</AvatarFallback>
             </Avatar>
-            <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full bg-green-500 border-2 border-background" 
-                  aria-label="Online status indicator">
-            </span>
+            <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full bg-green-500 border-2 border-background"></span>
           </div>
         </div>
 
         <Separator className="w-[80%] mx-auto opacity-50" />
 
-        {/* Navigation Items - More compact spacing on mobile */}
+        {/* Navigation Items */}
         <TooltipProvider delayDuration={0}>
           <div className="px-2 py-6 flex-1">
             <nav className="space-y-6 md:space-y-8 flex flex-col items-center">
@@ -132,13 +137,20 @@ export function Sidebar() {
                       size="icon"
                       onClick={() => setActiveItem(item.name)}
                       className={cn(
-                        "h-11 w-11 rounded-xl transition-all",
+                        "h-11 w-11 rounded-xl transition-all relative", // Added relative for badge positioning
                         activeItem === item.name 
-                ? "bg-primary/10 text-primary shadow-sm" 
+                          ? "bg-primary/10 text-primary shadow-sm" 
                           : "hover:bg-muted"
                       )}
                     >
                       {item.icon}
+                      
+                      {/* Notification Badge */}
+                      {item.badge && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                          {item.badge > 99 ? "99+" : item.badge}
+                        </span>
+                      )}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="right" className="font-medium md:flex hidden">
@@ -169,7 +181,7 @@ export function Sidebar() {
               </TooltipContent>
             </Tooltip>
 
-            {/* Logout Icon with logout functionality */}
+            {/* Logout Icon */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
