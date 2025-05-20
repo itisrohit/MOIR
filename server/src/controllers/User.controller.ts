@@ -251,3 +251,41 @@ export const getAllUsers = asyncHandler(
     );
   }
 );
+
+
+// Update user Status
+export const updateUserStatus = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    const { status } = req.body;
+    const userId = req.user?._id;
+
+    if (!userId) {
+      throw new ApiError(401, "Unauthorized access");
+    }
+
+    if (!status || !Object.values(UserStatus).includes(status)) {
+      throw new ApiError(400, "Invalid status value");
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { status },
+      { new: true }
+    ).select("-password");
+
+    if (!updatedUser) {
+      throw new ApiError(404, "User not found");
+    }
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          success: true,
+          user: {},
+        },
+        "User status updated successfully"
+      )
+    );
+  }
+);

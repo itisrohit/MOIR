@@ -13,19 +13,25 @@ app.use(
   })
 );
 
+
+const API_PREFIX = "/api/v1";
+
+
 //-------------------------------------------------
 // Routes Import
 import userRoutes from "./routes/user.route";
-
-//routes declaration
-const API_PREFIX = "/api/v1";
+import conversationRouter from './routes/conversation.route';
+import friendRouter from './routes/friend.route';
 
 // Routes
 app.use(`${API_PREFIX}/user`, userRoutes);
+app.use(`${API_PREFIX}/conversation`, conversationRouter);
+app.use(`${API_PREFIX}/friend`, friendRouter);
 //-------------------------------------------------
 
+
 // Health check route
-app.get("/api/v1/health", (_: Request, res: Response) => {
+app.get(`${API_PREFIX}/health`, (_: Request, res: Response) => {
   res.status(200).json({
     status: "success",
     message: "Server is up and running",
@@ -33,7 +39,7 @@ app.get("/api/v1/health", (_: Request, res: Response) => {
 });
 
 // Root route
-app.get("/", (_: Request, res: Response) => {
+app.get(`${API_PREFIX}`, (_: Request, res: Response) => {
   res.status(200).json({
     status: "success",
     message: "Welcome to the API",
