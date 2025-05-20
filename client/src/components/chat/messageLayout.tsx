@@ -4,7 +4,7 @@ import { MessageInput } from "./messageInput";
 import { EmptyChat } from "./emptyChat";
 import { EmptyMessage } from "./emptyMessage";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChatData } from "@/hooks/useMock";
+import { ChatData } from "@/store/chatStore";
 
 type MessageLayoutProps = {
   selectedChatId: string | null; 

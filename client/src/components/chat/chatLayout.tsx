@@ -1,6 +1,6 @@
 "use client";
 
-import { useMock } from '@/hooks/useMock';
+import { useChat } from '@/hooks/useChat';
 import { useState, useEffect } from "react";
 import { useSidebar } from "@/components/layout/sidebar";
 import ChatList from "./chatList";
@@ -16,7 +16,7 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
   const [isMobileView, setIsMobileView] = useState<boolean>(false);
   const { setMessageViewActive } = useSidebar();
   
-  // Use our custom hook
+  // Replace useMock with useChat
   const {
     chatList,
     selectedChat,
@@ -27,7 +27,7 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
     handleSelectChat,
     handleBackButton,
     handleSendMessage
-  } = useMock(initialChatId);
+  } = useChat(initialChatId); // Changed from useMock to useChat
 
   // Check if mobile view on mount and window resize
   useEffect(() => {
@@ -150,7 +150,39 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
   
   if (!isInitialized) {
     console.log("Initialized but not ready");
-    return <div>Initializing chat interface...</div>;
+    return (
+      <div className="flex w-full h-screen overflow-hidden">
+        {/* Skeleton for chat list */}
+        <div className="w-80 border-r bg-background flex-shrink-0 hidden md:block">
+          {/* Skeleton header */}
+          <div className="h-[73px] p-4 border-b">
+            <Skeleton className="w-full h-9" />
+          </div>
+          
+          {/* Skeleton chat items */}
+          {[1, 2, 3, 4, 5].map((item) => (
+            <div key={item} className="flex items-center p-4 gap-3">
+              <Skeleton className="h-12 w-12 rounded-full" />
+              <div className="flex-1">
+                <Skeleton className="h-4 w-24 mb-2" />
+                <Skeleton className="h-3 w-32" />
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        {/* Default empty state skeleton for message area */}
+        <div className="flex-1 flex flex-col">
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center p-8">
+              <Skeleton className="h-16 w-16 rounded-full mx-auto mb-4" />
+              <Skeleton className="h-6 w-48 mx-auto mb-2" />
+              <Skeleton className="h-4 w-64 mx-auto" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

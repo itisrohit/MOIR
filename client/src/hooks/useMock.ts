@@ -130,7 +130,6 @@ export function useMock(initialChatId: string | null = null) {
     const lastMessage = messages.length > 0 ? 
       messages[messages.length - 1].text : 
       "No messages yet";
-      
     return {
       id: user._id,
       name: user.name,
@@ -186,7 +185,7 @@ export function useMock(initialChatId: string | null = null) {
   // Handle back button - update to use replace
   const handleBackButton = () => {
     setSelectedChat(null);
-    router.replace("/v/chat"); // Changed from push to replace
+    router.replace("/v/chat"); 
   };
 
   // Wrap updateMessages in useCallback

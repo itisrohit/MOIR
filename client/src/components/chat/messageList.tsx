@@ -1,4 +1,4 @@
-import { Message } from "@/hooks/useMock";
+import { Message } from "@/store/chatStore";
 import { useEffect, useRef, useLayoutEffect } from "react";
 
 type MessageListProps = {
