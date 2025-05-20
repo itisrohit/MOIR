@@ -6,18 +6,22 @@ import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatItem } from "@/store/chatStore";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft } from "lucide-react";
+import { useSidebar } from "@/components/layout/sidebar";
 
 export default function ChatList({
     onSelectChat,
     mobileView,
     selectedChatId,
-    chatList, // Add this prop
+    chatList,
 }: {
     onSelectChat: (chat: ChatItem) => void; 
     mobileView?: boolean;
     selectedChatId: string | null;
-    chatList: ChatItem[]; // Add this prop type
+    chatList: ChatItem[];
 }) {
+    const { toggleSidebar } = useSidebar();
     const [searchTerm, setSearchTerm] = useState("");
 
     const filteredChats = searchTerm
@@ -38,6 +42,19 @@ export default function ChatList({
 				!mobileView && "w-80"
 			)}
 		>
+			{/* Add Menu Button for Mobile View */}
+			{mobileView && (
+				<Button
+					variant="ghost"
+					size="icon"
+					onClick={toggleSidebar}
+					className="fixed bottom-4 right-4 h-12 w-12 rounded-full bg-background/95 shadow-md border border-border/60 md:hidden"
+					aria-label="Menu"
+				>
+					<ChevronLeft className="h-5 w-5 text-muted-foreground" />
+				</Button>
+			)}
+
 			{/* Search bar - adjusted height to match header */}
 			<div className="h-[73px] p-4 border-b flex items-center">
 				<div className="relative w-full">

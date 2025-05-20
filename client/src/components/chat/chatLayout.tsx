@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from '@/hooks/useChat';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSidebar } from "@/components/layout/sidebar";
 import ChatList from "./chatList";
 import { MessageLayout } from "./messageLayout";
@@ -15,6 +15,8 @@ interface ChatLayoutProps {
 export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
   const [isMobileView, setIsMobileView] = useState<boolean>(false);
   const { setMessageViewActive } = useSidebar();
+  // Add a ref to track initial chat selection
+  const initialSelectionMadeRef = useRef<boolean>(false);
   
   // Replace useMock with useChat
   const {
@@ -27,7 +29,7 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
     handleSelectChat,
     handleBackButton,
     handleSendMessage
-  } = useChat(initialChatId); // Changed from useMock to useChat
+  } = useChat(initialChatId);
 
   // Check if mobile view on mount and window resize
   useEffect(() => {
@@ -55,6 +57,24 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
     console.log("ChatLayout render state:", { loading, isInitialized });
   }, [loading, isInitialized]);
   
+  // Make sure selectedChat is properly initialized - MOVED UP HERE
+  useEffect(() => {
+    // Only perform initial selection once
+    if (!initialSelectionMadeRef.current && isInitialized) {
+      if (initialChatId && chatList.length > 0) {
+        const chatToSelect = chatList.find(chat => chat.id === initialChatId);
+        if (chatToSelect) {
+          handleSelectChat(chatToSelect);
+        }
+        initialSelectionMadeRef.current = true;
+      } else if (isMobileView) {
+        // Force selectedChat to null for mobile view initial state
+        handleBackButton();
+        initialSelectionMadeRef.current = true;
+      }
+    }
+  }, [initialChatId, chatList, isMobileView, isInitialized, handleSelectChat, handleBackButton]);
+  
   // Force exit loading state if stuck for too long
   useEffect(() => {
     if (loading) {
@@ -67,6 +87,15 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
       return () => clearTimeout(timeout);
     }
   }, [loading]);
+
+  // Add this to force null selectedChat on direct navigation to /v/chat
+  useEffect(() => {
+    // If we're on /v/chat (no specific chat ID) and in mobile view,
+    // ensure selectedChat is null to show the chat list
+    if (!initialChatId && isMobileView) {
+      handleBackButton();
+    }
+  }, [initialChatId, isMobileView, handleBackButton]);
 
   // Show loading state
   if (loading) {
@@ -189,29 +218,17 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
     <div className="flex w-full h-screen overflow-hidden">
       {/* Mobile view container */}
       {isMobileView ? (
-        <div className="relative w-full h-full">
-          {/* Chat list */}
-          <div 
-            className={cn(
-              "absolute inset-0 w-full h-full z-20 bg-background transition-transform duration-300 ease-out",
-              selectedChat !== null ? "-translate-x-full" : "translate-x-0"
-            )}
-          >
+        <div className={cn("relative w-full h-full")}>
+          {!selectedChat ? (
+            // Show ONLY chat list when no chat is selected
             <ChatList 
               onSelectChat={handleSelectChat}
-              mobileView={isMobileView}
-              selectedChatId={selectedChat?.id || null}
+              mobileView={true}
+              selectedChatId={null}
               chatList={chatList} 
             />
-          </div>
-          
-          {/* Chat window */}
-          <div 
-            className={cn(
-              "absolute inset-0 w-full h-full z-10 bg-background transition-transform duration-300 ease-out",
-              selectedChat !== null ? "translate-x-0" : "translate-x-full"
-            )}
-          >
+          ) : (
+            // Show ONLY message layout when a chat is selected
             <MessageLayout
               selectedChatId={selectedChat?.id || null}
               chatData={chatData}
@@ -220,7 +237,7 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
               showBackButton={true}
               chatLoading={chatLoading}
             />
-          </div>
+          )}
         </div>
       ) : (
         // Desktop view remains unchanged

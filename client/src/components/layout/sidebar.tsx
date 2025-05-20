@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, createContext, useContext } from "react";
-import { MessageSquare, Users, Bell, LogOut, ChevronLeft, ChevronRight, User } from "lucide-react";
+import { MessageSquare, Users, LogOut, ChevronLeft, ChevronRight, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -41,8 +41,7 @@ export function Sidebar() {
       icon: <MessageSquare className="h-5 w-5" />,
       badge: totalUnreadMessages > 0 ? totalUnreadMessages : null  
     },
-    { name: "Friends", icon: <Users className="h-5 w-5" /> },
-    { name: "Notifications", icon: <Bell className="h-5 w-5" /> },
+    { name: "Friends", icon: <Users className="h-5 w-5" /> }
   ];
 
   const handleLogout = () => {
