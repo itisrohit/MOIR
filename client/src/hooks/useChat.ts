@@ -62,9 +62,15 @@ export function useChat(initialChatId: string | null = null) {
           console.log("Initializing chat, fetching chat list (once)...");
           await fetchChatList();
           
+          // If we have an initialChatId from props, respect that over stored state
+          // This ensures URL-based navigation works correctly
           if (initialChatId) {
-            console.log("Setting initial chat ID:", initialChatId);
+            console.log("Setting initial chat ID from URL:", initialChatId);
             setSelectedChat(initialChatId);
+          } else if (window.location.pathname === '/v/chat') {
+            // Reset selected chat when at root chat URL
+            console.log("At root chat URL, resetting selected chat");
+            setSelectedChat(null);
           }
           
           hasInitializedRef.current = true;
