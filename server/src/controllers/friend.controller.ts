@@ -5,30 +5,37 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { ApiError } from '../utils/ApiError';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AuthRequest } from '../utils/types/auth.types';
-import { FriendDocument, PopulatedFriendDocument } from '../utils/types/friend.types';
+import { FriendDocument, PopulatedFriendDocument, UserDocument } from '../utils/types/friend.types';
 
 // Send a friend request
 export const sendFriendRequest = asyncHandler(
   async (req: AuthRequest, res: Response) => {
-    const { recipientId } = req.body;
+    const { emailorusername } = req.body;
     const userId = req.user?._id;
 
     if (!userId) {
       throw new ApiError(401, "Unauthorized access");
     }
 
-    if (!recipientId) {
-      throw new ApiError(400, "Recipient ID is required");
+    if (!emailorusername || typeof emailorusername !== 'string') {
+      throw new ApiError(400, "Username or email  is required");
     }
 
-    // Check if recipient exists
-    const recipientUser = await User.findById(recipientId);
+    // Determine if emailorusername is email or username
+    const isEmail = emailorusername.includes('@');
+    
+    // Find recipient by username or email
+    const query = isEmail ? { email: emailorusername } : { username: emailorusername };
+    const recipientUser = await User.findOne(query) as UserDocument | null;
+    
     if (!recipientUser) {
       throw new ApiError(404, "User not found");
     }
 
+    const recipientId = recipientUser._id;
+
     // Check if trying to add self as friend
-    if (userId.toString() === recipientId) {
+    if (userId.toString() === recipientId.toString()) {
       throw new ApiError(400, "Cannot send friend request to yourself");
     }
 
@@ -143,70 +150,6 @@ export const respondToFriendRequest = asyncHandler(
 );
 
 
-// Get all incoming friend requests (received)
-export const getIncomingFriendRequests = asyncHandler(
-  async (req: AuthRequest, res: Response) => {
-    const userId = req.user?._id;
-
-    if (!userId) {
-      throw new ApiError(401, "Unauthorized access");
-    }
-
-    const requests = await Friend.find({
-      recipient: userId,
-      status: FriendshipStatus.PENDING
-    })
-    .populate('requester', 'name username image status')
-    .sort({ createdAt: -1 }) as unknown as PopulatedFriendDocument[];
-
-    const formattedRequests = requests.map(request => ({
-      id: request._id,
-      user: request.requester,
-      createdAt: request.createdAt,
-      isRead: request.requestRead
-    }));
-
-    res.status(200).json(
-      new ApiResponse(
-        200,
-        { requests: formattedRequests },
-        "Incoming friend requests fetched successfully"
-      )
-    );
-  }
-);
-
-// Get all outgoing friend requests (sent)
-export const getOutgoingFriendRequests = asyncHandler(
-  async (req: AuthRequest, res: Response) => {
-    const userId = req.user?._id;
-
-    if (!userId) {
-      throw new ApiError(401, "Unauthorized access");
-    }
-
-    const requests = await Friend.find({
-      requester: userId,
-      status: FriendshipStatus.PENDING
-    })
-    .populate('recipient', 'name username image status')
-    .sort({ createdAt: -1 });
-
-    const formattedRequests = requests.map(request => ({
-      id: request._id,
-      user: request.recipient,
-      createdAt: request.createdAt
-    }));
-
-    res.status(200).json(
-      new ApiResponse(
-        200,
-        { requests: formattedRequests },
-        "Outgoing friend requests fetched successfully"
-      )
-    );
-  }
-);
 
 // Get all friends
 export const getFriends = asyncHandler(
@@ -410,6 +353,64 @@ export const markNotificationsAsRead = asyncHandler(
         200,
         updateResults,
         `${updateResults.total} notifications marked as read`
+      )
+    );
+  }
+);
+
+// Get friend requests - can fetch incoming, outgoing, or both
+export const getFriendRequests = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?._id;
+    const { direction = 'all' } = req.query; // 'incoming', 'outgoing', or 'all'
+
+    if (!userId) {
+      throw new ApiError(401, "Unauthorized access");
+    }
+
+    const result: {
+      incoming?: any[];
+      outgoing?: any[];
+    } = {};
+
+    // Get incoming requests if needed
+    if (direction === 'incoming' || direction === 'all') {
+      const incomingRequests = await Friend.find({
+        recipient: userId,
+        status: FriendshipStatus.PENDING
+      })
+      .populate('requester', 'name username image status')
+      .sort({ createdAt: -1 }) as unknown as PopulatedFriendDocument[];
+
+      result.incoming = incomingRequests.map(request => ({
+        id: request._id,
+        user: request.requester,
+        createdAt: request.createdAt,
+        isRead: request.requestRead
+      }));
+    }
+
+    // Get outgoing requests if needed
+    if (direction === 'outgoing' || direction === 'all') {
+      const outgoingRequests = await Friend.find({
+        requester: userId,
+        status: FriendshipStatus.PENDING
+      })
+      .populate('recipient', 'name username image status')
+      .sort({ createdAt: -1 }) as unknown as PopulatedFriendDocument[];
+
+      result.outgoing = outgoingRequests.map(request => ({
+        id: request._id,
+        user: request.recipient,
+        createdAt: request.createdAt
+      }));
+    }
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        result,
+        "Friend requests fetched successfully"
       )
     );
   }

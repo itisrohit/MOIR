@@ -33,3 +33,13 @@ export type PopulatedFriendDocument = mongoose.Document & {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// In src/utils/types/user.types.ts
+export type UserDocument = mongoose.Document & {
+  _id: mongoose.Types.ObjectId;
+  name: string;
+  username: string;
+  email: string;
+  image: string;
+  status: string;
+}

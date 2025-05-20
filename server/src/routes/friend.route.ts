@@ -3,8 +3,7 @@ import { verifyJWT } from '../middlewares/auth.middleware';
 import { 
   sendFriendRequest, 
   respondToFriendRequest,
-  getIncomingFriendRequests, 
-  getOutgoingFriendRequests,
+  getFriendRequests,
   getFriends,
   getNotifications,
   markNotificationsAsRead
@@ -20,8 +19,7 @@ router.post('/:friendshipId/respond', respondToFriendRequest);
 
 // Friend list endpoints
 router.get('/list', getFriends);
-router.get('/requests/incoming', getIncomingFriendRequests);
-router.get('/requests/outgoing', getOutgoingFriendRequests);
+router.get('/requests', getFriendRequests);
 
 
 router.get('/notifications', getNotifications);
