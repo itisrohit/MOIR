@@ -1,5 +1,5 @@
 import { Message } from "@/store/chatStore";
-import { useEffect, useRef, useLayoutEffect } from "react";
+import { useRef, useLayoutEffect } from "react";
 
 type MessageListProps = {
   messages: Message[];
@@ -9,7 +9,7 @@ export function MessageList({ messages }: MessageListProps) {
   // Create a ref for the scrollable container
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
+  
   // Function to scroll to bottom immediately (without smooth behavior)
   const scrollToBottomImmediately = () => {
     if (containerRef.current) {
@@ -17,22 +17,11 @@ export function MessageList({ messages }: MessageListProps) {
     }
   };
 
-  // Function to scroll to bottom with smooth animation
-  const scrollToBottomSmooth = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  // Use Layout Effect for immediate scrolling on initial render
+  // Use Layout Effect for immediate scrolling whenever messages change or component mounts
   useLayoutEffect(() => {
+    // Always scroll to bottom immediately when messages change or on initial load
     scrollToBottomImmediately();
-  }, []);
-
-  // Use Effect for smooth scrolling when messages change
-  useEffect(() => {
-    if (messages.length > 0) {
-      scrollToBottomSmooth();
-    }
-  }, [messages]);
+  }, [messages]); // Now dependent on messages array to re-scroll on any changes
 
   return (
     <div 
