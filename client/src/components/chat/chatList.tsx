@@ -106,12 +106,25 @@ export default function ChatList({
 
 							<div className="flex-1 min-w-0">
 								<div className="flex justify-between items-baseline">
-									<h3 className="font-medium truncate">{chat.name}</h3>
-									<span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+									<h3 className={cn(
+										"font-medium truncate",
+										chat.unread > 0 && "font-semibold" // Make name bold for unread chats
+									)}>
+										{chat.name}
+									</h3>
+									<span className={cn(
+										"text-xs whitespace-nowrap ml-2",
+										chat.unread > 0 ? "text-primary font-medium" : "text-muted-foreground" // Highlight timestamp
+									)}>
 										{chat.timestamp}
 									</span>
 								</div>
-								<p className="text-sm text-muted-foreground truncate">
+								<p className={cn(
+									"text-sm truncate",
+									chat.unread > 0
+										? "text-foreground font-medium" // Highlighted style for unread
+										: "text-muted-foreground"       // Normal style for read
+								)}>
 									{chat.lastMessage}
 								</p>
 							</div>
