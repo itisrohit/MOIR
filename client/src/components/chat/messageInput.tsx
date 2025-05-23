@@ -1,20 +1,59 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSocket } from "@/hooks/useSocket";
 
 type MessageInputProps = {
   onSendMessage: (message: string) => void;
+  conversationId: string;
 };
 
-export function MessageInput({ onSendMessage }: MessageInputProps) {
+export function MessageInput({ onSendMessage, conversationId }: MessageInputProps) {
   const [messageInput, setMessageInput] = useState("");
+  const { sendTypingStatus } = useSocket();
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Detect typing and send typing indicator
+  useEffect(() => {
+    if (messageInput && conversationId) {
+      // Set typing to true
+      sendTypingStatus(conversationId, true);
+      
+      // Clear any existing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
+      // Set timeout to stop typing indicator after 2 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        sendTypingStatus(conversationId, false);
+      }, 2000);
+    }
+    
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [messageInput, conversationId, sendTypingStatus]);
+  
+  // Stop typing indicator when component unmounts
+  useEffect(() => {
+    return () => {
+      if (conversationId) {
+        sendTypingStatus(conversationId, false);
+      }
+    };
+  }, [conversationId, sendTypingStatus]);
   
   const handleSendMessage = () => {
     if (!messageInput.trim()) return;
     onSendMessage(messageInput);
     setMessageInput("");
+    // Stop typing indicator immediately when sending
+    sendTypingStatus(conversationId, false);
   };
   
   return (

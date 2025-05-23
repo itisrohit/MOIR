@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import MainLayout from "@/components/layout/main_layout";
 import useAuth from "@/hooks/useAuth";
+import { useSocket } from "@/hooks/useSocket"; 
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface VLayoutProps {
@@ -14,8 +15,10 @@ export default function VLayout({ children }: VLayoutProps) {
   const { isAuthenticated, loading, user, verifyUser } = useAuth();
   const router = useRouter();
   const [isInitialized, setIsInitialized] = useState(false);
-  // Add ref to prevent verification loops
   const hasVerified = useRef(false);
+
+  // Initialize socket connection for authenticated users
+  useSocket(); // Adding this line - this will handle all socket logic
 
   // Separate effect for hydration
   useEffect(() => {
@@ -37,11 +40,9 @@ export default function VLayout({ children }: VLayoutProps) {
 
       // Verify token once
       verifyUser().catch(() => {
-        // On failure, redirect happens automatically via the interceptor & localLogout
         router.replace("/auth");
       });
     } else if (!loading && !isAuthenticated) {
-      // Not authenticated and not loading
       router.replace("/auth");
     }
   }, [isAuthenticated, isInitialized, loading, router, verifyUser]);
@@ -63,6 +64,6 @@ export default function VLayout({ children }: VLayoutProps) {
     return null;
   }
 
-  // Auth verified, render the layout
+  // Auth verified, render the layout with socket connection active
   return <MainLayout>{children}</MainLayout>;
 }

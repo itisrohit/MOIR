@@ -94,7 +94,9 @@ interface ChatStore {
   error: string | null;
   unreadCounts: Record<string, number>;
   chatOrderCache: string[];  // Added to match mockStore
-  
+  typingUsers: Record<string, Record<string, boolean>>;
+  fullHistoryLoaded: Record<string, boolean>; // Add a new state property
+
   // Actions
   fetchChatList: () => Promise<void>;
   fetchMessages: (chatId: string) => Promise<void>;
@@ -103,6 +105,12 @@ interface ChatStore {
   markChatAsRead: (chatId: string) => void;
   clearError: () => void;
   updateChatOrder: (chatId: string) => void;  // Added to match mockStore
+  setUserTyping: (conversationId: string, userId: string, isTyping: boolean) => void;
+
+  // Add these new methods
+  addNewMessage: (conversationId: string, message: Message & { _isInActiveChat?: boolean }) => void;
+  updateChatOnlineStatus: (userId: string, isOnline: boolean) => void;
+  updateLastMessageInfo: (data: { id: string, lastMessage: string, timestamp: string, updatedAt: string }) => void;
 }
 
 // Create the chat store
@@ -116,6 +124,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   error: null,
   unreadCounts: {},
   chatOrderCache: [],  // Added to match mockStore
+  typingUsers: {},
+  fullHistoryLoaded: {}, // Add this new state
 
   // Fetch chat list from API
   fetchChatList: async () => {
@@ -160,7 +170,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
             ...state.chatMessages,
             [chatId]: response.data.data.data
           },
-          chatLoading: false
+          chatLoading: false,
+          fullHistoryLoaded: {
+            ...state.fullHistoryLoaded,
+            [chatId]: true // Mark this chat as having its full history loaded
+          }
         }));
       } else {
         set({ error: response.data.message, chatLoading: false });
@@ -282,9 +296,17 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         )
       }));
 
-      // Only fetch messages if we don't already have them cached
-      if (!get().chatMessages[chatId] || get().chatMessages[chatId].length === 0) {
+      // Only fetch messages if:
+      // 1. We don't have any messages for this chat yet OR
+      // 2. We haven't fully loaded the chat history before
+      const hasMessages = get().chatMessages[chatId]?.length > 0;
+      const historyFullyLoaded = get().fullHistoryLoaded[chatId];
+      
+      if (!hasMessages || !historyFullyLoaded) {
+        console.log(`Fetching messages for chat ${chatId} - hasMessages: ${hasMessages}, historyFullyLoaded: ${historyFullyLoaded}`);
         get().fetchMessages(chatId);
+      } else {
+        console.log(`Using cached messages for chat ${chatId}`);
       }
     }
   },
@@ -337,6 +359,112 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   // Clear any errors
   clearError: () => {
     set({ error: null });
+  },
+
+  // Add a new incoming message
+  addNewMessage: (conversationId: string, message: Message & { _isInActiveChat?: boolean }) => {
+    set(state => {
+      const currentMessages = state.chatMessages[conversationId] || [];
+      
+      // Check if message with this ID already exists
+      const messageExists = currentMessages.some(msg => msg.id === message.id);
+      
+      // Remove our special flag before adding to messages array
+      const { _isInActiveChat, ...cleanMessage } = message;
+      
+      // Only add the message if it's unique
+      const updatedMessages = messageExists 
+        ? currentMessages 
+        : [...currentMessages, cleanMessage];
+      
+      // Only increment unread if:
+      // 1. Message is not in active chat (based on flag)
+      // 2. Message is new (not a duplicate)
+      const shouldIncrementUnread = !_isInActiveChat && !messageExists;
+      
+      const currentUnread = state.unreadCounts[conversationId] || 0;
+      const newUnread = shouldIncrementUnread ? currentUnread + 1 : currentUnread;
+      
+      // Update chat list
+      const updatedChatList = state.chatList.map(chat => {
+        if (chat.id === conversationId) {
+          return {
+            ...chat,
+            lastMessage: message.text,
+            timestamp: message.time,
+            updatedAt: message.createdAt || new Date().toISOString(),
+            unread: newUnread
+          };
+        }
+        return chat;
+      }).sort((a, b) => 
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+      
+      return {
+        chatMessages: {
+          ...state.chatMessages,
+          [conversationId]: updatedMessages
+        },
+        chatList: updatedChatList,
+        unreadCounts: {
+          ...state.unreadCounts,
+          [conversationId]: newUnread
+        }
+      };
+    });
+  },
+
+  // Update chat online status
+  updateChatOnlineStatus: (userId: string, isOnline: boolean) => {
+    set(state => ({
+      chatList: state.chatList.map(chat => 
+        chat.otherUserId === userId 
+          ? { ...chat, online: isOnline }
+          : chat
+      )
+    }));
+  },
+
+  // Update last message info
+  updateLastMessageInfo: (data: { id: string, lastMessage: string, timestamp: string, updatedAt: string }) => {
+    set(state => {
+      const updatedChatList = state.chatList.map(chat => 
+        chat.id === data.id 
+          ? {
+              ...chat,
+              lastMessage: data.lastMessage,
+              timestamp: data.timestamp,
+              updatedAt: data.updatedAt
+            }
+          : chat
+      );
+      
+      updatedChatList.sort((a, b) => 
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+      
+      return { chatList: updatedChatList };
+    });
+  },
+
+  // Set user typing status
+  setUserTyping: (conversationId: string, userId: string, isTyping: boolean) => {
+    set(state => {
+      // Initialize nested maps if needed
+      const conversationTyping = state.typingUsers[conversationId] || {};
+      
+      // Update typing status
+      return {
+        typingUsers: {
+          ...state.typingUsers,
+          [conversationId]: {
+            ...conversationTyping,
+            [userId]: isTyping
+          }
+        }
+      };
+    });
   }
 }));
 
