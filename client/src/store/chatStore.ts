@@ -16,6 +16,7 @@ export interface Message {
   sender: 'me' | 'other';
   time: string;
   createdAt?: string;
+  read?: boolean; // Add this field for read status
 }
 
 export interface ChatItem {
@@ -111,6 +112,7 @@ interface ChatStore {
   addNewMessage: (conversationId: string, message: Message & { _isInActiveChat?: boolean }) => void;
   updateChatOnlineStatus: (userId: string, isOnline: boolean) => void;
   updateLastMessageInfo: (data: { id: string, lastMessage: string, timestamp: string, updatedAt: string }) => void;
+  updateMessageReadStatus: (conversationId: string, messageIds?: string[]) => void; // Add this new action
 }
 
 // Create the chat store
@@ -194,7 +196,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         id: tempId,
         text,
         sender: 'me',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        read: false // Initialize as unread
       };
       
       // Update local state first for instant feedback
@@ -462,6 +465,29 @@ export const useChatStore = create<ChatStore>((set, get) => ({
             ...conversationTyping,
             [userId]: isTyping
           }
+        }
+      };
+    });
+  },
+
+  // Update message read status
+  updateMessageReadStatus: (conversationId: string, messageIds?: string[]) => {
+    set(state => {
+      const messages = state.chatMessages[conversationId] || [];
+      
+      // If specific messageIds are provided, only mark those as read
+      // Otherwise mark all messages from 'me' as read
+      const updatedMessages = messages.map(msg => {
+        if (msg.sender === 'me' && (!messageIds || messageIds.includes(msg.id))) {
+          return { ...msg, read: true };
+        }
+        return msg;
+      });
+      
+      return {
+        chatMessages: {
+          ...state.chatMessages,
+          [conversationId]: updatedMessages
         }
       };
     });

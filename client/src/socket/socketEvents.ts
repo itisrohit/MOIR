@@ -9,7 +9,7 @@ export const EVENTS = {
   MESSAGE_SEND: 'message:send',
   MESSAGE_RECEIVE: 'message:receive',
   MESSAGE_READ: 'message:read',
-
+  MESSAGE_READ_ACK: 'message:read:ack', // Add this new event
   CHAT_MESSAGE_UPDATE: 'chat:message:update',
 
   ERROR: 'error'

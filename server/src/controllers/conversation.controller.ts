@@ -204,6 +204,7 @@ export const getMessages = asyncHandler(
         minute: "2-digit",
       }),
       createdAt: message.createdAt,
+      read: message.read, // Include read status
     }));
 
     // Mark messages as read

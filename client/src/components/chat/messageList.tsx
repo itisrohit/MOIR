@@ -1,27 +1,25 @@
 import { Message } from "@/store/chatStore";
 import { useRef, useLayoutEffect } from "react";
+import { Check } from "lucide-react"; // Import the check icon
 
 type MessageListProps = {
   messages: Message[];
 };
 
 export function MessageList({ messages }: MessageListProps) {
-  // Create a ref for the scrollable container
+  // Keep existing scroll handling
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Function to scroll to bottom immediately (without smooth behavior)
   const scrollToBottomImmediately = () => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   };
 
-  // Use Layout Effect for immediate scrolling whenever messages change or component mounts
   useLayoutEffect(() => {
-    // Always scroll to bottom immediately when messages change or on initial load
     scrollToBottomImmediately();
-  }, [messages]); // Now dependent on messages array to re-scroll on any changes
+  }, [messages]);
 
   return (
     <div 
@@ -41,15 +39,32 @@ export function MessageList({ messages }: MessageListProps) {
             }`}
           >
             <p>{message.text}</p>
-            <p className={`text-xs mt-1 ${
+            <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${
               message.sender === 'me' 
                 ? 'text-primary-foreground/70' 
                 : 'text-muted-foreground'
-            }`}>{message.time}</p>
+            }`}>
+              <span>{message.time}</span>
+              
+              {/* Show read receipt (blue tick) only for messages sent by me */}
+              {message.sender === 'me' && (
+                <div className="flex ml-1">
+                  {message.read ? (
+                    // Blue double check for read messages
+                    <div className="flex">
+                      <Check className="h-3 w-3 text-blue-400 stroke-[3]" />
+                      <Check className="h-3 w-3 text-blue-400 stroke-[3] -ml-1" />
+                    </div>
+                  ) : (
+                    // Gray single check for sent but unread
+                    <Check className="h-3 w-3 text-primary-foreground/50 stroke-[3]" />
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ))}
-      {/* Empty div at the end to scroll to */}
       <div ref={messagesEndRef} />
     </div>
   );

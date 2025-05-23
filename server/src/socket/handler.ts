@@ -2,8 +2,10 @@ import { Server } from 'socket.io';
 import { SOCKET_EVENTS } from './events';
 import { updateUserOnlineStatus } from './services/user.service';
 import { AuthenticatedSocket } from './middleware';
-import { notifyConversationParticipants } from './service';
+import { notifyConversationParticipants, notifyUser } from './service';
 import { Conversation } from '../models/conversation.model';
+import { Message } from '../models/message.model';
+import { Types } from 'mongoose';
 
 // Store typing status: { conversationId: { userId: boolean } }
 const typingUsers = new Map<string, Record<string, boolean>>();
@@ -92,7 +94,47 @@ export const registerSocketHandlers = (io: Server) => {
         
         if (!conversation) return;
         
-        // FIXED: Add conversationId to params
+        // Find other participant
+        const otherParticipantId = conversation.participants.find(
+          p => p.toString() !== userId
+        );
+        
+        // Add null check before using
+        if (!otherParticipantId) {
+          console.error(`Could not find other participant in conversation ${conversationId}`);
+          return;
+        }
+        
+        // Get unread messages from this conversation sent by the other participant
+        const messages = await Message.find({
+          conversationId,
+          sender: otherParticipantId, // Now safe to use
+          read: false
+        });
+        
+        // Update message read status in database
+        if (messages.length > 0) {
+          await Message.updateMany(
+            { 
+              conversationId, 
+              sender: otherParticipantId,
+              read: false
+            },
+            { read: true }
+          );
+          
+          // Get message IDs to send back in acknowledgment
+          const messageIds = messages.map(msg => (msg._id as unknown as Types.ObjectId).toString());
+          
+          // Send read receipt back to sender
+          notifyUser(otherParticipantId.toString(), SOCKET_EVENTS.MESSAGE_READ_ACK, {
+            conversationId,
+            messageIds,
+            readBy: userId
+          });
+        }
+        
+        // Continue with existing code to mark the conversation as read...
         const req: any = { 
           user: { _id: userId },
           params: { conversationId }  // Add this line

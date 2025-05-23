@@ -108,6 +108,15 @@ export const useSocket = () => {
     socket.on(EVENTS.CHAT_MESSAGE_UPDATE, messageUpdateHandler);
     socket.on(EVENTS.USER_TYPING, typingHandler);
     
+    // Add this new handler for read receipts
+    const readReceiptHandler = ({ conversationId, messageIds }: any) => {
+      console.log('Messages marked as read by recipient:', messageIds);
+      useChatStore.getState().updateMessageReadStatus(conversationId, messageIds);
+    };
+    
+    // Register the handler
+    socket.on(EVENTS.MESSAGE_READ_ACK, readReceiptHandler);
+    
     // Clean up event handlers
     return () => {
       console.log("Cleaning up socket event handlers");
@@ -116,6 +125,7 @@ export const useSocket = () => {
       socket.off(EVENTS.USER_OFFLINE, offlineHandler);
       socket.off(EVENTS.CHAT_MESSAGE_UPDATE, messageUpdateHandler);
       socket.off(EVENTS.USER_TYPING, typingHandler);
+      socket.off(EVENTS.MESSAGE_READ_ACK, readReceiptHandler);
     };
   }, [updateChatOnlineStatus, addNewMessage, updateLastMessageInfo, setUserTyping, markChatAsRead]);
   
