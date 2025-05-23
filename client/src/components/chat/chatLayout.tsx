@@ -220,12 +220,12 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
       {isMobileView ? (
         <div className={cn("relative w-full h-full")}>
           {!selectedChat ? (
-            // Show ONLY chat list when no chat is selected
+            // Pass only what's needed - chatList is now managed internally
             <ChatList 
               onSelectChat={handleSelectChat}
               mobileView={true}
               selectedChatId={null}
-              chatList={chatList} 
+              // chatList prop removed - component subscribes directly to the store
             />
           ) : (
             // Show ONLY message layout when a chat is selected
@@ -246,7 +246,7 @@ export default function ChatLayout({ initialChatId = null }: ChatLayoutProps) {
             onSelectChat={handleSelectChat}
             mobileView={false}
             selectedChatId={selectedChat?.id || null}
-            chatList={chatList}  
+            // chatList prop removed here too
           />
           
           <MessageLayout

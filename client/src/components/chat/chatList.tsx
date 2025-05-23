@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ChatItem } from "@/store/chatStore";
+import { ChatItem, useChatStore } from "@/store/chatStore"; // Add useChatStore import
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 import { useSidebar } from "@/components/layout/sidebar";
@@ -14,16 +14,19 @@ export default function ChatList({
     onSelectChat,
     mobileView,
     selectedChatId,
-    chatList,
 }: {
     onSelectChat: (chat: ChatItem) => void; 
     mobileView?: boolean;
     selectedChatId: string | null;
-    chatList: ChatItem[];
 }) {
     const { toggleSidebar } = useSidebar();
     const [searchTerm, setSearchTerm] = useState("");
+    
+    // Direct subscription to the store - this will auto-update when store changes
+    const chatList = useChatStore(state => state.chatList);
+    
 
+    
     const filteredChats = searchTerm
         ? chatList.filter((chat) =>
                 chat.name.toLowerCase().includes(searchTerm.toLowerCase())

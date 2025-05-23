@@ -17,6 +17,7 @@ export const SidebarContext = createContext({
   toggleSidebar: () => {},
   isVisible: true,
   messageViewActive: false,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   setMessageViewActive: (active: boolean) => {},
 });
 
@@ -156,8 +157,8 @@ export function Sidebar() {
                   </span>
                 )}
                 
-                {/* Add label for mobile */}
-                <span className="md:hidden text-xs mt-1">{item.name}</span>
+                {/* REMOVE THIS TEXT LABEL FOR MOBILE */}
+                {/* <span className="md:hidden text-xs mt-1">{item.name}</span> */}
               </Button>
             ))}
           </nav>

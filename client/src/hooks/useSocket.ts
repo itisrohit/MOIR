@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { Socket } from 'socket.io-client';
-import { connectSocket, disconnectSocket } from '@/socket/socket';
+import { connectSocket, disconnectSocket, getSocket } from '@/socket/socket';
 import { EVENTS } from '@/socket/socketEvents';
 import { useAuthStore } from '@/store/authStore';
 import { useChatStore } from '@/store/chatStore';
@@ -20,32 +20,27 @@ export const useSocket = () => {
   useEffect(() => {
     if (!isAuthenticated || !accessToken) return;
     
+    console.log("Connecting socket in component");
     socketRef.current = connectSocket(accessToken);
     
     return () => {
-      disconnectSocket();
+      console.log("Component unmounting, managing socket connection");
+      disconnectSocket(true); // Track component unmount but don't force disconnect
     };
   }, [isAuthenticated, accessToken]);
   
   // Register event handlers
   useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket) return;
+    // Always use the global socket to ensure consistent event handling
+    const socket = getSocket();
+    if (!socket) {
+      console.log("No socket available for event registration");
+      return;
+    }
     
-    // Handle other users coming online
-    socket.on(EVENTS.USER_ONLINE, ({ userId }) => {
-      console.log('User online:', userId);
-      updateChatOnlineStatus(userId, true);
-    });
+    console.log("Registering socket event handlers");
     
-    // Handle other users going offline
-    socket.on(EVENTS.USER_OFFLINE, ({ userId }) => {
-      console.log('User offline:', userId);
-      updateChatOnlineStatus(userId, false);
-    });
-    
-    // Handle incoming messages with IMPROVED read status handling
-    socket.on(EVENTS.MESSAGE_RECEIVE, (messageData) => {
+    const messageHandler = (messageData: any) => {
       console.log('Message received:', messageData);
       const { conversationId } = messageData;
       
@@ -56,7 +51,6 @@ export const useSocket = () => {
       // Add read status flag to message if it's in the active chat
       const messageWithReadFlag = {
         ...messageData,
-        // This flag tells addNewMessage NOT to increment the unread count
         _isInActiveChat: isActiveChat 
       };
       
@@ -67,48 +61,63 @@ export const useSocket = () => {
       if (!messageExists) {
         // Add the message with the read flag
         addNewMessage(conversationId, messageWithReadFlag);
+        console.log('Message added to store, active chat:', isActiveChat);
         
-        // If this is the active chat, mark as read AFTER adding the message
+        // If this is the active chat, mark as read
         if (isActiveChat) {
-          // Immediately mark as read in local state
           markChatAsRead(conversationId);
           
-          // Send socket event with a small delay to avoid race conditions
           setTimeout(() => {
-            console.log('Auto-marking message as read for active chat:', conversationId);
-            if (socketRef.current) {
-              socketRef.current.emit(EVENTS.MESSAGE_READ, {
-                conversationId
-              });
+            const currentSocket = getSocket();
+            if (currentSocket) {
+              console.log('Marking messages as read for active chat:', conversationId);
+              currentSocket.emit(EVENTS.MESSAGE_READ, { conversationId });
             }
           }, 300);
         }
       } else {
-        console.log('Ignoring duplicate message:', messageData.id);
+        console.log('Duplicate message ignored:', messageData.id);
       }
-    });
+    };
     
-    // Handle chat updates (last message, timestamp, etc.)
-    socket.on(EVENTS.CHAT_MESSAGE_UPDATE, (chatUpdateData) => {
-      console.log('Chat update:', chatUpdateData);
-      updateLastMessageInfo(chatUpdateData);
-    });
+    // Create named handlers for better cleanup
+    const onlineHandler = ({ userId }: {userId: string}) => {
+      console.log('User online:', userId);
+      updateChatOnlineStatus(userId, true);
+    };
     
-    // Handle typing indicators
-    socket.on(EVENTS.USER_TYPING, ({ conversationId, userId, isTyping }) => {
+    const offlineHandler = ({ userId }: {userId: string}) => {
+      console.log('User offline:', userId);
+      updateChatOnlineStatus(userId, false);
+    };
+    
+    const messageUpdateHandler = (data: any) => {
+      console.log('Chat update:', data);
+      updateLastMessageInfo(data);
+    };
+    
+    const typingHandler = ({ conversationId, userId, isTyping }: any) => {
       console.log('User typing:', userId, isTyping, 'in', conversationId);
       setUserTyping(conversationId, userId, isTyping);
-    });
+    };
+    
+    // Register all handlers
+    socket.on(EVENTS.MESSAGE_RECEIVE, messageHandler);
+    socket.on(EVENTS.USER_ONLINE, onlineHandler);
+    socket.on(EVENTS.USER_OFFLINE, offlineHandler);
+    socket.on(EVENTS.CHAT_MESSAGE_UPDATE, messageUpdateHandler);
+    socket.on(EVENTS.USER_TYPING, typingHandler);
     
     // Clean up event handlers
     return () => {
-      socket.off(EVENTS.USER_ONLINE);
-      socket.off(EVENTS.USER_OFFLINE);
-      socket.off(EVENTS.MESSAGE_RECEIVE);
-      socket.off(EVENTS.CHAT_MESSAGE_UPDATE);
-      socket.off(EVENTS.USER_TYPING);
+      console.log("Cleaning up socket event handlers");
+      socket.off(EVENTS.MESSAGE_RECEIVE, messageHandler);
+      socket.off(EVENTS.USER_ONLINE, onlineHandler);
+      socket.off(EVENTS.USER_OFFLINE, offlineHandler);
+      socket.off(EVENTS.CHAT_MESSAGE_UPDATE, messageUpdateHandler);
+      socket.off(EVENTS.USER_TYPING, typingHandler);
     };
-  }, [updateChatOnlineStatus, addNewMessage, updateLastMessageInfo, setUserTyping]);
+  }, [updateChatOnlineStatus, addNewMessage, updateLastMessageInfo, setUserTyping, markChatAsRead]);
   
   // Function to send typing status
   const sendTypingStatus = useCallback((conversationId: string, isTyping: boolean) => {
