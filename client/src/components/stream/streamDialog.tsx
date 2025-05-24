@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Computer, Music } from "lucide-react";
 import StreamLayout from "./streamLayout";
@@ -14,10 +15,17 @@ interface StreamDialogProps {
 }
 
 export function StreamDialog({ isOpen, onClose, chatId, chatName }: StreamDialogProps) {
-  const [selectedOption, setSelectedOption] = useState<"screen" | "music" | null>(null);
+  const router = useRouter();
+  const [selectedOption, setSelectedOption] = useState<"music" | null>(null);
   
-  const handleOptionSelect = (option: "screen" | "music") => {
-    setSelectedOption(option);
+  const handleScreenShareClick = () => {
+    // Close dialog and navigate to full screen experience
+    onClose();
+    router.push(`/v/stream/${chatId}?mode=screen`);
+  };
+  
+  const handleMusicSelect = () => {
+    setSelectedOption("music");
   };
   
   const handleBack = () => {
@@ -27,51 +35,62 @@ export function StreamDialog({ isOpen, onClose, chatId, chatName }: StreamDialog
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
       if (!open) {
-        // Reset selected option when dialog is closed
         setSelectedOption(null);
         onClose();
       }
     }}>
-      <DialogContent 
-        className={selectedOption 
-          ? "max-w-[95vw] h-[90vh] p-0 bg-black border-zinc-800" 
-          : "max-w-md"}
-      >
-        {!selectedOption ? (
-          <>
-            <DialogHeader>
-              <DialogTitle>Stream with {chatName || "User"}</DialogTitle>
-            </DialogHeader>
-            <div className="grid grid-cols-2 gap-4 pt-4">
-              <Button 
-                variant="outline" 
-                className="h-32 flex flex-col gap-2"
-                onClick={() => handleOptionSelect("screen")}
-              >
-                <Computer className="h-10 w-10" />
-                <span>Screen Share</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                className="h-32 flex flex-col gap-2"
-                onClick={() => handleOptionSelect("music")}
-              >
-                <Music className="h-10 w-10" />
-                <span>Music Together</span>
-              </Button>
-            </div>
-          </>
-        ) : (
+      {!selectedOption ? (
+        <DialogContent 
+          className="max-w-md"
+          aria-describedby="stream-dialog-description"
+        >
+          <DialogHeader>
+            <DialogTitle>Connect with {chatName || "User"}</DialogTitle>
+            <DialogDescription id="stream-dialog-description">
+              Choose between screen sharing and music sharing options
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-2 gap-4 pt-4">
+            <Button 
+              variant="outline" 
+              className="h-32 flex flex-col gap-2"
+              onClick={handleScreenShareClick}
+            >
+              <Computer className="h-10 w-10" />
+              <span>Stream</span>
+              <span className="text-xs text-muted-foreground">Share your screen</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-32 flex flex-col gap-2"
+              onClick={handleMusicSelect}
+            >
+              <Music className="h-10 w-10" />
+              <span>Listen Together</span>
+              <span className="text-xs text-muted-foreground">Share music</span>
+            </Button>
+          </div>
+        </DialogContent>
+      ) : (
+        <DialogContent 
+          className="max-w-[95vw] h-[90vh] p-0 bg-black border-zinc-800"
+          aria-describedby="music-stream-dialog-description"
+        >
+          {/* Hidden description for music mode */}
+          <span id="music-stream-dialog-description" className="sr-only">
+            Music streaming interface with {chatName || "User"}
+          </span>
           <div className="h-full">
             <StreamLayout 
               chatId={chatId} 
-              mode={selectedOption} 
+              mode="music" 
               onBack={handleBack}
               isDialog={true}
             />
           </div>
-        )}
-      </DialogContent>
+        </DialogContent>
+      )}
     </Dialog>
   );
 }

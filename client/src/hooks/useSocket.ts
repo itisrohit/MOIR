@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { Socket } from 'socket.io-client';
 import { connectSocket, disconnectSocket, getSocket } from '@/socket/socket';
 import { EVENTS } from '@/socket/socketEvents';
@@ -48,6 +48,7 @@ export const useSocket = () => {
     setUserTyping,
     markChatAsRead 
   } = useChatStore();
+  const [isConnected, setIsConnected] = useState(false);
   
   // Connect socket when authenticated
   useEffect(() => {
@@ -203,8 +204,34 @@ export const useSocket = () => {
     markChatAsRead(conversationId);
   }, [markChatAsRead]);
 
+  // Socket connection status
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleConnect = () => {
+      console.log('Connected to socket server');
+      setIsConnected(true);
+    };
+
+    const handleDisconnect = () => {
+      console.log('Disconnected from socket server');
+      setIsConnected(false);
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+
+    // Clean up on unmount
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+    };
+  }, []);
+
   return {
     socket: socketRef.current,
+    isConnected,
     sendTypingStatus,
     markMessagesAsRead 
   };

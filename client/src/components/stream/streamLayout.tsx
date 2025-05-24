@@ -1,27 +1,24 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { 
-  ArrowLeft, 
-  Monitor, 
-  MonitorOff, 
   Music, 
-  Mic, 
-  MicOff, 
-  Square,
   Video,
   VideoOff,
   PhoneOff,
   Search,
   X,
   Play,
-  Volume2
+  Volume2,
+  Mic,
+  MicOff
 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useChatStore } from "@/store/chatStore";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useStream } from "@/hooks/useStream";
+import Image from "next/image";
+import { useAuthStore } from '@/store/authStore';
+import { Loader2 } from "lucide-react";
 
 interface StreamLayoutProps {
   chatId: string;
@@ -30,201 +27,171 @@ interface StreamLayoutProps {
   isDialog?: boolean;
 }
 
-// Mock music search results
-const musicSearchResults = [
-  { id: '1', title: 'Blinding Lights', artist: 'The Weeknd', duration: '3:20', cover: 'https://i.scdn.co/image/ab67616d0000b2738863bc11d2aa12b54f5aeb36' },
-  { id: '2', title: 'Shape of You', artist: 'Ed Sheeran', duration: '3:53', cover: 'https://i.scdn.co/image/ab67616d0000b273ba5db46f4b838ef6027e6f96' },
-  { id: '3', title: 'Dance Monkey', artist: 'Tones and I', duration: '3:29', cover: 'https://i.scdn.co/image/ab67616d0000b273c6f7af36cfa803ec1419bcc3' },
-  { id: '4', title: 'Someone You Loved', artist: 'Lewis Capaldi', duration: '3:02', cover: 'https://i.scdn.co/image/ab67616d0000b273fc2101e6889d6ce9025f85f2' },
-  { id: '5', title: 'Bad Guy', artist: 'Billie Eilish', duration: '3:14', cover: 'https://i.scdn.co/image/ab67616d0000b27350a3147b4edd7701a876c6ce' }
-];
-
 export default function StreamLayout({ 
   chatId, 
-  mode,
+  mode = "screen",
   onBack,
   isDialog = false
 }: StreamLayoutProps) {
-  const router = useRouter();
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [isMusicSharing, setIsMusicSharing] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isVideoOff, setIsVideoOff] = useState(true);
-  const [isFullscreenMode, setIsFullscreenMode] = useState(mode === "screen");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [showMusicSearch, setShowMusicSearch] = useState(false);
-  const [selectedMusic, setSelectedMusic] = useState<any>(null);
+  // Get current user
+  const { user: currentUser } = useAuthStore();
   
-  const screenVideoRef = useRef<HTMLVideoElement>(null);
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const musicRef = useRef<HTMLAudioElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
-  const { chatList } = useChatStore();
-  const chat = chatList.find(c => c.id === chatId);
-
-  const handleBack = () => {
-    // Stop all streams before going back
-    stopScreenShare();
-    stopMusicShare();
+  const {
+    // State
+    chat,
+    isScreenSharing,
+    isVideoOff,
+    isMuted,
+    showMusicSearch,
+    searchTerm,
+    selectedMusic,
+    isFullscreenMode,
+    musicSearchResults,
+    callStatus,
+    remoteUserInfo,
     
-    // Use dialog onBack if in dialog mode, otherwise router.back()
-    if (isDialog && onBack) {
-      onBack();
-    } else {
-      router.back();
-    }
-  };
-
-  const startScreenShare = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: true
-      });
-      
-      streamRef.current = stream;
-      
-      if (screenVideoRef.current) {
-        screenVideoRef.current.srcObject = stream;
-      }
-      
-      setIsScreenSharing(true);
-      setIsFullscreenMode(true);
-      
-      // Handle stream ending
-      stream.getVideoTracks()[0].onended = () => {
-        stopScreenShare();
-      };
-    } catch (error) {
-      console.error("Error starting screen share:", error);
-    }
-  };
-
-  const stopScreenShare = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
+    // Refs
+    screenVideoRef,
+    localVideoRef,
+    musicRef,
     
-    if (screenVideoRef.current) {
-      screenVideoRef.current.srcObject = null;
-    }
-    
-    setIsScreenSharing(false);
-    if (mode === "screen") {
-      setIsFullscreenMode(false);
-    }
-  };
+    // Actions
+    startScreenShare,
+    toggleMute,
+    toggleVideo,
+    handleSearchMusic,
+    selectMusic,
+    handleBack,
+    startMusicShare,
+    setShowMusicSearch,
+    acceptCall,
+    rejectCall,
+    endCall,
+  } = useStream(chatId, mode, isDialog, onBack);  // Pass onBack here
 
-  const startMusicShare = () => {
-    setShowMusicSearch(true);
-    // This would integrate with music streaming APIs
-    // For now, we just toggle the state
-  };
-
-  const stopMusicShare = () => {
-    if (musicRef.current) {
-      musicRef.current.pause();
-      musicRef.current.src = "";
-    }
-    setIsMusicSharing(false);
-    setShowMusicSearch(false);
-    setSelectedMusic(null);
-  };
-
-  const toggleMute = () => {
-    setIsMuted(!isMuted);
-    if (streamRef.current) {
-      streamRef.current.getAudioTracks().forEach(track => {
-        track.enabled = isMuted;
-      });
-    }
-  };
-
-  const toggleVideo = async () => {
-    try {
-      if (isVideoOff) {
-        // Turn on camera
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false
-        });
-        
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
-      } else {
-        // Turn off camera
-        if (localVideoRef.current && localVideoRef.current.srcObject) {
-          const tracks = (localVideoRef.current.srcObject as MediaStream).getTracks();
-          tracks.forEach(track => track.stop());
-          localVideoRef.current.srcObject = null;
-        }
-      }
+  // Render different UI based on call status
+  const renderCallStatusUI = () => {
+    switch (callStatus) {
+      case 'connecting':
+      case 'ringing':
+        return (
+          <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-20">
+            <div className="flex flex-col md:flex-row items-center gap-8 p-8 rounded-xl bg-zinc-900">
+              {/* Your user card */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="relative avatar-container">
+                  <Avatar className="h-24 w-24 border-2 border-primary">
+                    <AvatarFallback>{currentUser?.name?.charAt(0) || '?'}</AvatarFallback>
+                    {currentUser?.image && (
+                      <Image 
+                        src={currentUser.image} 
+                        alt={currentUser.name}
+                        fill
+                        className="object-cover"
+                      />
+                    )}
+                  </Avatar>
+                  <div className="absolute -bottom-1 -right-1 bg-green-500 p-1 rounded-full status-indicator">
+                    <Video className="h-4 w-4 text-white" />
+                  </div>
+                </div>
+                <span className="text-sm text-white/80">You</span>
+              </div>
+              
+              {/* Connection animation */}
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-2 bg-primary rounded-full animate-ping"></div>
+                <div className="h-2 w-2 bg-primary rounded-full animate-ping" style={{ animationDelay: '300ms' }}></div>
+                <div className="h-2 w-2 bg-primary rounded-full animate-ping" style={{ animationDelay: '600ms' }}></div>
+              </div>
+              
+              {/* Remote user card */}
+              {remoteUserInfo && (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="relative">
+                    <Avatar className="h-24 w-24 border-2 border-zinc-700">
+                      <AvatarFallback>{remoteUserInfo.name?.charAt(0) || '?'}</AvatarFallback>
+                      {remoteUserInfo.avatar && (
+                        <Image 
+                          src={remoteUserInfo.avatar} 
+                          alt={remoteUserInfo.name}
+                          fill
+                          className="object-cover"
+                        />
+                      )}
+                    </Avatar>
+                    {callStatus === 'ringing' && (
+                      <div className="absolute -bottom-1 -right-1 bg-yellow-500 p-1 rounded-full animate-pulse">
+                        <Loader2 className="h-4 w-4 text-white animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-sm text-white/80">{remoteUserInfo.name}</span>
+                </div>
+              )}
+            </div>
+            
+            {/* Status text */}
+            <div className="absolute bottom-1/4 left-0 right-0 text-center">
+              <p className="text-white/70">
+                {callStatus === 'connecting' ? 'Connecting...' : 'Ringing...'}
+              </p>
+              <Button
+                onClick={endCall}
+                variant="destructive"
+                className="mt-4"
+              >
+                Hang Up
+              </Button>
+            </div>
+          </div>
+        );
       
-      setIsVideoOff(!isVideoOff);
-    } catch (error) {
-      console.error("Error toggling video:", error);
+      case 'rejected':
+        return (
+          <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-20">
+            <X className="h-16 w-16 text-red-500 mb-4" />
+            <p className="text-xl text-white/70">Call Rejected</p>
+          </div>
+        );
+      
+      default:
+        return null;
     }
   };
-
-  const handleSearchMusic = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-  };
-
-  const selectMusic = (music: any) => {
-    setSelectedMusic(music);
-    setIsMusicSharing(true);
-    setShowMusicSearch(false);
-  };
-
-  // Auto-start the feature based on mode
-  useEffect(() => {
-    if (mode === "screen" && !isScreenSharing) {
-      startScreenShare();
-    } else if (mode === "music" && !isMusicSharing) {
-      startMusicShare();
-    }
-    
-    return () => {
-      // Cleanup streams on unmount
-      stopScreenShare();
-      stopMusicShare();
-    };
-  }, [mode]);
 
   return (
-    <div className={`flex flex-col ${isDialog ? 'h-full' : 'h-screen'} bg-black text-white`}>
-      {/* Google Meet style header - small and minimal */}
-      <div className="flex items-center justify-between p-2 bg-black/80 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleBack}
-            aria-label="Back"
-            className="text-white hover:bg-white/10"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-sm font-medium">
-            {mode === "screen" ? "Screen Share" : "Music Together"} with {chat?.name || "User"}
-          </h1>
-        </div>
-      </div>
-
+    <div className={`flex flex-col ${isDialog ? 'h-full' : 'h-screen w-full'} bg-black text-white relative`}>
+      {/* Call status overlay */}
+      {renderCallStatusUI()}
+      
       {/* Main Video Area */}
-      {isFullscreenMode && (
+      {isFullscreenMode && mode === "screen" && (
         <div className="relative flex-1 overflow-hidden bg-black">
-          {/* Main video feed */}
-          <video
-            ref={screenVideoRef}
-            autoPlay
-            className="w-full h-full object-contain"
-          />
+          {isScreenSharing ? (
+            <video
+              key="screen-video"
+              ref={screenVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-contain bg-zinc-900"
+              style={{ display: isScreenSharing ? 'block' : 'none' }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="text-center">
+                <p className="text-lg text-white/60 mb-3">Screen sharing stopped</p>
+                <Button 
+                  onClick={startScreenShare}
+                  className="bg-white/10 hover:bg-white/20 text-white"
+                >
+                  Start sharing again
+                </Button>
+              </div>
+            </div>
+          )}
 
-          {/* Participant videos (small thumbnail) */}
           <div className="absolute bottom-20 right-4 w-[180px] h-[101px]">
             {isVideoOff ? (
               <div className="w-full h-full bg-zinc-800 rounded-lg flex items-center justify-center">
@@ -234,8 +201,10 @@ export default function StreamLayout({
               </div>
             ) : (
               <video 
+                key="camera-video"
                 ref={localVideoRef} 
-                autoPlay 
+                autoPlay
+                playsInline
                 muted 
                 className="w-full h-full object-cover rounded-lg border border-white/20"
               />
@@ -244,7 +213,7 @@ export default function StreamLayout({
         </div>
       )}
 
-      {/* Music Search and Player */}
+      {/* Music Player */}
       {mode === "music" && (
         <div className="flex-1 p-4 bg-zinc-900">
           {showMusicSearch ? (
@@ -279,11 +248,19 @@ export default function StreamLayout({
                       className="flex items-center p-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 cursor-pointer"
                       onClick={() => selectMusic(track)}
                     >
-                      <img 
-                        src={track.cover} 
-                        alt={track.title} 
-                        className="w-12 h-12 rounded mr-3" 
-                      />
+                      <div className="relative w-12 h-12 rounded mr-3 overflow-hidden">
+                        <Image 
+                          src={track.cover} 
+                          alt={track.title} 
+                          width={48}
+                          height={48}
+                          className="rounded object-cover"
+                          onError={(e) => {
+                            // Fallback to a placeholder if image fails to load
+                            e.currentTarget.src = '/images/music-placeholder.jpg';
+                          }}
+                        />
+                      </div>
                       <div className="flex-1">
                         <div className="font-medium">{track.title}</div>
                         <div className="text-sm text-gray-400">{track.artist}</div>
@@ -299,11 +276,15 @@ export default function StreamLayout({
               {selectedMusic ? (
                 <div className="max-w-md w-full p-6 bg-zinc-800 rounded-xl shadow-lg">
                   <div className="flex flex-col items-center">
-                    <img 
-                      src={selectedMusic.cover} 
-                      alt={selectedMusic.title} 
-                      className="w-48 h-48 rounded-lg shadow-lg mb-4" 
-                    />
+                    <div className="relative w-48 h-48 mb-4">
+                      <Image 
+                        src={selectedMusic.cover} 
+                        alt={selectedMusic.title} 
+                        width={192}
+                        height={192}
+                        className="rounded-lg shadow-lg object-cover"
+                      />
+                    </div>
                     <h3 className="text-xl font-bold mt-2">{selectedMusic.title}</h3>
                     <p className="text-gray-400">{selectedMusic.artist}</p>
                     
@@ -361,6 +342,7 @@ export default function StreamLayout({
 
       {/* Controls toolbar at the bottom */}
       <div className="flex items-center justify-center gap-4 py-4 px-4 bg-black border-t border-white/10">
+        {/* Mic button - keep for both modes */}
         <Button
           variant="ghost"
           size="icon"
@@ -369,36 +351,32 @@ export default function StreamLayout({
         >
           {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
         </Button>
-        
-        <Button
-          variant="ghost"
-          size="icon"
-          className={`rounded-full h-12 w-12 ${isVideoOff ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-700 hover:bg-zinc-600'}`}
-          onClick={toggleVideo}
-        >
-          {isVideoOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
-        </Button>
-        
-        {mode === "screen" ? (
+
+        {/* Screen mode controls */}
+        {mode === "screen" && (
           <Button
             variant="ghost"
             size="icon"
-            className={`rounded-full h-12 w-12 ${isScreenSharing ? 'bg-red-600 hover:bg-red-700' : 'bg-zinc-800 hover:bg-zinc-700'}`}
-            onClick={isScreenSharing ? stopScreenShare : startScreenShare}
+            className={`rounded-full h-12 w-12 ${isVideoOff ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-700 hover:bg-zinc-600'}`}
+            onClick={toggleVideo}
           >
-            {isScreenSharing ? <MonitorOff className="h-5 w-5" /> : <Monitor className="h-5 w-5" />}
-          </Button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`rounded-full h-12 w-12 ${isMusicSharing ? 'bg-red-600 hover:bg-red-700' : 'bg-zinc-800 hover:bg-zinc-700'}`}
-            onClick={isMusicSharing ? stopMusicShare : startMusicShare}
-          >
-            {isMusicSharing ? <Square className="h-5 w-5" /> : <Music className="h-5 w-5" />}
+            {isVideoOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
           </Button>
         )}
         
+        {/* Music mode controls */}
+        {mode === "music" && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full h-12 w-12 bg-zinc-800 hover:bg-zinc-700"
+            onClick={startMusicShare}
+          >
+            <Search className="h-5 w-5" />
+          </Button>
+        )}
+        
+        {/* End call button */}
         <Button
           variant="ghost"
           size="icon"
@@ -408,6 +386,62 @@ export default function StreamLayout({
           <PhoneOff className="h-5 w-5" />
         </Button>
       </div>
+
+      {/* Incoming call dialog */}
+      {callStatus === 'ringing' && !isScreenSharing && (
+        <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-30">
+          <div className="p-6 bg-zinc-900 rounded-xl max-w-md w-full">
+            <div className="flex items-center gap-4 mb-6">
+              <Avatar className="h-16 w-16">
+                <AvatarFallback>{remoteUserInfo?.name?.charAt(0) || '?'}</AvatarFallback>
+                {remoteUserInfo?.avatar && (
+                  <Image 
+                    src={remoteUserInfo.avatar} 
+                    alt={remoteUserInfo.name}
+                    fill
+                    className="object-cover"
+                  />
+                )}
+              </Avatar>
+              <div>
+                <h3 className="font-semibold text-lg">{remoteUserInfo?.name}</h3>
+                <p className="text-white/60">Incoming video call</p>
+              </div>
+            </div>
+            
+            <div className="flex justify-center gap-4">
+              <Button 
+                variant="destructive" 
+                className="rounded-full h-12 w-12 p-0"
+                onClick={rejectCall}
+              >
+                <PhoneOff className="h-5 w-5" />
+              </Button>
+              <Button 
+                variant="default" 
+                className="bg-green-600 hover:bg-green-700 rounded-full h-12 w-12 p-0"
+                onClick={acceptCall}
+              >
+                <Video className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom controls - only show when call is accepted */}
+      {callStatus === 'accepted' && (
+        <div className="absolute bottom-4 left-0 right-0 flex justify-center z-10">
+          <Button 
+            variant="destructive" 
+            size="icon" 
+            className="rounded-full h-12 w-12"
+            onClick={endCall}
+          >
+            <PhoneOff className="h-5 w-5" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
