@@ -64,6 +64,10 @@ export const broadcastToAll = (senderId: string, event: string, data: any): void
   // If sender is connected, use their socket to broadcast
   if (senderSocket) {
     senderSocket.broadcast.emit(event, data);
+  } else {
+    // If sender's socket isn't found (likely during disconnect),
+    // broadcast from server directly to everyone
+    global.socketIo.emit(event, data);
   }
 };
 
