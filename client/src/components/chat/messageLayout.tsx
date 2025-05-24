@@ -117,6 +117,7 @@ export function MessageLayout({
                 online={chatData.online}
                 onBack={onBack}
                 showBackButton={showBackButton}
+                chatId={selectedChatId || undefined}
               />
               
               {chatLoading ? (
