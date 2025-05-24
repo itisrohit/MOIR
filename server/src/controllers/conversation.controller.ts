@@ -165,7 +165,7 @@ export const getMessages = asyncHandler(
     }
 
     // Check if this is a "f-" prefixed ID (indicating no conversation exists yet)
-    if (conversationId.startsWith("f-") || conversationId.startsWith("f-")) {
+    if (conversationId.startsWith("f-")) {
       return res.status(200).json(
         new ApiResponse(
           200,
