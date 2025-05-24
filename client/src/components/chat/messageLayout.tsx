@@ -6,7 +6,7 @@ import { EmptyMessage } from "./emptyMessage";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChatData, useChatStore } from "@/store/chatStore";
 import { useSocket } from "@/hooks/useSocket";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TypingIndicator } from "./typing-indicator"; // Import the component
 
 type MessageLayoutProps = {
@@ -31,8 +31,32 @@ export function MessageLayout({
   
   const hasMarkedAsReadRef = useRef<Record<string, boolean>>({});
 
-  const isTyping = selectedChatId && typingUsers[selectedChatId] ? 
-    Object.values(typingUsers[selectedChatId]).some(status => status) : false;
+
+  const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
+
+  useEffect(() => {
+    if (!selectedChatId || !chatData) {
+      setIsOtherUserTyping(false);
+      return;
+    }
+    
+    const otherUserId = chatData.otherUserId;
+    const conversationTyping = typingUsers[selectedChatId];
+    
+    // Debugging logs
+    console.log('🔍 Checking typing status:', {
+      conversationId: selectedChatId,
+      otherUserId,
+      typingStatus: conversationTyping?.[otherUserId]
+    });
+    
+    // Check if the other user is typing
+    const typing = !!conversationTyping && 
+                   !!otherUserId && 
+                   !!conversationTyping[otherUserId];
+    
+    setIsOtherUserTyping(typing);
+  }, [selectedChatId, chatData, typingUsers]);
 
   useEffect(() => {
     if (
@@ -141,9 +165,9 @@ export function MessageLayout({
               )}
               
               <TypingIndicator 
-                isTyping={isTyping} 
+                isTyping={isOtherUserTyping} 
                 className="px-4 pb-1" 
-                userName={chatData.name} // Pass the user's name
+                userName={chatData?.name}
               />
 
               <MessageInput 

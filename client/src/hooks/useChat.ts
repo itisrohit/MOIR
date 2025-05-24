@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useChatStore } from '@/store/chatStore';
-import { useSocket } from '@/hooks/useSocket'; // Add this import
-import { EVENTS } from '@/socket/socketEvents'; // Add this import
+import { useSocket } from '@/hooks/useSocket'; 
 import type { ChatItem, ChatData } from '@/store/chatStore';
 
 // Create a global variable outside the component to persist across renders
@@ -13,13 +12,11 @@ export function useChat(initialChatId: string | null = null) {
   const { 
     chatList, 
     chatMessages, 
-    selectedChatId,
-    unreadCounts,      
+    selectedChatId,   
     error,  
     fetchChatList, 
     setSelectedChat, 
     sendMessage,
-    markChatAsRead,
     updateChatOrder,
   } = useChatStore();
   

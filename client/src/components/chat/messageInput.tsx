@@ -17,19 +17,31 @@ export function MessageInput({ onSendMessage, conversationId }: MessageInputProp
   
   // Detect typing and send typing indicator
   useEffect(() => {
-    if (messageInput && conversationId) {
-      // Set typing to true
-      sendTypingStatus(conversationId, true);
-      
-      // Clear any existing timeout
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      
-      // Set timeout to stop typing indicator after 2 seconds of inactivity
-      typingTimeoutRef.current = setTimeout(() => {
+    if (conversationId) {
+      // When message input has content, set typing to true
+      if (messageInput.trim()) {
+        // Set typing to true
+        sendTypingStatus(conversationId, true);
+        
+        // Clear any existing timeout
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+        
+        // Set timeout to stop typing indicator after 2 seconds of inactivity
+        typingTimeoutRef.current = setTimeout(() => {
+          sendTypingStatus(conversationId, false);
+        }, 2000);
+      } 
+      // When input is empty, immediately set typing to false
+      else {
         sendTypingStatus(conversationId, false);
-      }, 2000);
+        
+        // Clear any existing timeout
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+      }
     }
     
     return () => {

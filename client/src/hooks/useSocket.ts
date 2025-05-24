@@ -3,7 +3,40 @@ import { Socket } from 'socket.io-client';
 import { connectSocket, disconnectSocket, getSocket } from '@/socket/socket';
 import { EVENTS } from '@/socket/socketEvents';
 import { useAuthStore } from '@/store/authStore';
-import { useChatStore } from '@/store/chatStore';
+import { useChatStore, Message } from '@/store/chatStore'; // Import Message type here
+
+interface MessageData {
+  id: string;
+  text: string;
+  conversationId: string;
+  sender: string;
+  time: string;
+  createdAt: string;
+  read?: boolean;
+}
+
+interface UserStatusEvent {
+  userId: string;
+}
+
+interface ChatUpdateEvent {
+  id: string;
+  lastMessage: string;
+  timestamp: string;
+  updatedAt: string;
+}
+
+interface TypingEvent {
+  conversationId: string;
+  userId: string;
+  isTyping: boolean;
+}
+
+interface ReadReceiptEvent {
+  conversationId: string;
+  messageIds: string[];
+  readBy?: string;
+}
 
 export const useSocket = () => {
   const socketRef = useRef<Socket | null>(null);
@@ -40,17 +73,28 @@ export const useSocket = () => {
     
     console.log("Registering socket event handlers");
     
-    const messageHandler = (messageData: any) => {
+    const messageHandler = (messageData: MessageData) => {
       console.log('Message received:', messageData);
       const { conversationId } = messageData;
       
       // Get current state to check for active chat
       const state = useChatStore.getState();
       const isActiveChat = state.selectedChatId === conversationId;
+      const currentUserId = useAuthStore.getState().user?._id;
+      
+      // Transform the message to match our Message type
+      const transformedMessage: Message = {
+        id: messageData.id,
+        text: messageData.text,
+        // Correctly map the sender to either "me" or "other"
+        sender: messageData.sender === currentUserId ? "me" : "other",
+        time: messageData.time,
+        read: messageData.read,
+      };
       
       // Add read status flag to message if it's in the active chat
       const messageWithReadFlag = {
-        ...messageData,
+        ...transformedMessage,
         _isInActiveChat: isActiveChat 
       };
       
@@ -81,23 +125,29 @@ export const useSocket = () => {
     };
     
     // Create named handlers for better cleanup
-    const onlineHandler = ({ userId }: {userId: string}) => {
+    const onlineHandler = ({ userId }: UserStatusEvent) => {
       console.log('User online:', userId);
       updateChatOnlineStatus(userId, true);
     };
     
-    const offlineHandler = ({ userId }: {userId: string}) => {
+    const offlineHandler = ({ userId }: UserStatusEvent) => {
       console.log('User offline:', userId);
       updateChatOnlineStatus(userId, false);
     };
     
-    const messageUpdateHandler = (data: any) => {
+    const messageUpdateHandler = (data: ChatUpdateEvent) => {
       console.log('Chat update:', data);
       updateLastMessageInfo(data);
     };
     
-    const typingHandler = ({ conversationId, userId, isTyping }: any) => {
-      console.log('User typing:', userId, isTyping, 'in', conversationId);
+    const typingHandler = ({ conversationId, userId, isTyping }: TypingEvent) => {
+      console.log('🔵 TYPING EVENT RECEIVED:', {
+        conversationId,
+        userId,
+        isTyping,
+        currentUserId: useAuthStore.getState().user?._id,
+        selectedId: useChatStore.getState().selectedChatId
+      });
       setUserTyping(conversationId, userId, isTyping);
     };
     
@@ -109,7 +159,7 @@ export const useSocket = () => {
     socket.on(EVENTS.USER_TYPING, typingHandler);
     
     // Add this new handler for read receipts
-    const readReceiptHandler = ({ conversationId, messageIds }: any) => {
+    const readReceiptHandler = ({ conversationId, messageIds }: ReadReceiptEvent) => {
       console.log('Messages marked as read by recipient:', messageIds);
       useChatStore.getState().updateMessageReadStatus(conversationId, messageIds);
     };
