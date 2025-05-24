@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, createContext, useContext } from "react";
+import { useState, createContext, useContext, useCallback } from "react";
 import { MessageSquare, Users, LogOut, ChevronLeft, ChevronRight, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+// Import only what we need, remove tooltip imports
+// import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import useAuth from "@/hooks/useAuth";
 import { toastSuccess } from "@/utility/toastStyle";
-import { useChatStore } from "@/store/chatStore"; // Import useChatStore
+import { useChatStore } from "@/store/chatStore";
 
-// Create a context to expose the sidebar toggle function
+// Context definition remains the same
 export const SidebarContext = createContext({
   toggleSidebar: () => {},
   isVisible: true,
@@ -44,13 +45,19 @@ export function Sidebar() {
     { name: "Friends", icon: <Users className="h-5 w-5" /> }
   ];
 
-  const handleLogout = () => {
+  // Define all callback functions at the top level
+  const handleLogout = useCallback(() => {
     toastSuccess("Logged Out", {
       description: "You have been successfully logged out",
       duration: 3000
     });
     logout();
-  };
+  }, [logout]);
+
+  // Create a handler for navigation item clicks
+  const handleNavItemClick = useCallback((itemName: string) => {
+    setActiveItem(itemName);
+  }, []);
 
   return (
     <>
@@ -124,79 +131,63 @@ export function Sidebar() {
 
         <Separator className="w-[80%] mx-auto opacity-50" />
 
-        {/* Navigation Items */}
-        <TooltipProvider delayDuration={0}>
-          <div className="px-2 py-6 flex-1">
-            <nav className="space-y-6 md:space-y-8 flex flex-col items-center">
-              {navItems.map((item) => (
-                <Tooltip key={item.name}>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setActiveItem(item.name)}
-                      className={cn(
-                        "h-11 w-11 rounded-xl transition-all relative", // Added relative for badge positioning
-                        activeItem === item.name 
-                          ? "bg-primary/10 text-primary shadow-sm" 
-                          : "hover:bg-muted"
-                      )}
-                    >
-                      {item.icon}
-                      
-                      {/* Notification Badge */}
-                      {item.badge && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                          {item.badge > 99 ? "99+" : item.badge}
-                        </span>
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="font-medium md:flex hidden">
-                    {item.name}
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </nav>
-          </div>
-        </TooltipProvider>
+        {/* Navigation Items - REMOVED TOOLTIPS */}
+        <div className="px-2 py-6 flex-1">
+          <nav className="space-y-6 md:space-y-8 flex flex-col items-center">
+            {navItems.map((item) => (
+              <Button
+                key={item.name}
+                variant="ghost"
+                size="icon"
+                onClick={() => handleNavItemClick(item.name)}
+                className={cn(
+                  "h-11 w-11 rounded-xl transition-all relative",
+                  activeItem === item.name 
+                    ? "bg-primary/10 text-primary shadow-sm" 
+                    : "hover:bg-muted"
+                )}
+                title={item.name} // Basic HTML tooltip as fallback
+              >
+                {item.icon}
+                
+                {/* Notification Badge */}
+                {item.badge && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </span>
+                )}
+                
+                {/* REMOVE THIS TEXT LABEL FOR MOBILE */}
+                {/* <span className="md:hidden text-xs mt-1">{item.name}</span> */}
+              </Button>
+            ))}
+          </nav>
+        </div>
 
+        {/* Bottom section - REMOVED TOOLTIPS */}
         <div className="mt-auto pb-6 flex flex-col items-center">
           <Separator className="w-[80%] mx-auto opacity-50 mb-6" />
-          <TooltipProvider>
-            {/* Profile Icon */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-11 w-11 rounded-xl text-primary hover:bg-primary/10 hover:text-primary/80 mb-3"
-                >
-                  <User className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="font-medium md:flex hidden">
-                Profile
-              </TooltipContent>
-            </Tooltip>
+          
+          {/* Profile Icon */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-11 w-11 rounded-xl text-primary hover:bg-primary/10 hover:text-primary/80 mb-3"
+            title="Profile" // Basic HTML tooltip as fallback
+          >
+            <User className="h-5 w-5" />
+          </Button>
 
-            {/* Logout Icon */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleLogout}
-                  className="h-11 w-11 rounded-xl text-red-500 hover:bg-red-500/10 hover:text-red-600"
-                >
-                  <LogOut className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="font-medium md:flex hidden">
-                Logout
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          {/* Logout Icon */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleLogout}
+            className="h-11 w-11 rounded-xl text-red-500 hover:bg-red-500/10 hover:text-red-600"
+            title="Logout" // Basic HTML tooltip as fallback
+          >
+            <LogOut className="h-5 w-5" />
+          </Button>
         </div>
       </div>
     </>

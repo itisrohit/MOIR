@@ -1,4 +1,4 @@
-export const SOCKET_EVENTS = {
+export const EVENTS = {
   CONNECTION: 'connection',
   DISCONNECT: 'disconnect',
 
@@ -10,8 +10,7 @@ export const SOCKET_EVENTS = {
   MESSAGE_RECEIVE: 'message:receive',
   MESSAGE_READ: 'message:read',
   MESSAGE_READ_ACK: 'message:read:ack', 
-
-  CHAT_MESSAGE_UPDATE: 'chat:message:update', 
+  CHAT_MESSAGE_UPDATE: 'chat:message:update',
 
   ERROR: 'error'
 };

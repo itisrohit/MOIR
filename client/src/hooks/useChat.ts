@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useChatStore } from '@/store/chatStore';
+import { useSocket } from '@/hooks/useSocket'; 
 import type { ChatItem, ChatData } from '@/store/chatStore';
 
 // Create a global variable outside the component to persist across renders
@@ -11,15 +12,16 @@ export function useChat(initialChatId: string | null = null) {
   const { 
     chatList, 
     chatMessages, 
-    selectedChatId,
-    unreadCounts,      
+    selectedChatId,   
     error,  
     fetchChatList, 
     setSelectedChat, 
     sendMessage,
-    markChatAsRead,
     updateChatOrder,
   } = useChatStore();
+  
+  // Add useSocket hook to access markMessagesAsRead and the socket
+  const { markMessagesAsRead } = useSocket();
   
   // Use the global initialization state
   const hasInitializedRef = useRef<boolean>(GLOBAL_INITIALIZED.value);
@@ -122,36 +124,36 @@ export function useChat(initialChatId: string | null = null) {
     };
   }, [selectedChat, chatMessages]);
 
-  // Optimized chat selection
+  // Update your chat selection logic
   const handleSelectChat = useCallback((chat: ChatItem) => {
     console.log("Selecting chat:", chat.id);
     
-    // Only show loading if we don't already have messages for this chat
+    // Check if we already have messages and history for this chat
     const hasMessages = chatMessages[chat.id]?.length > 0;
+    const historyFullyLoaded = useChatStore.getState().fullHistoryLoaded[chat.id];
+    const needsFetching = !hasMessages || !historyFullyLoaded;
     
-    // Set loading only if needed
-    if (!hasMessages) {
+    // Only show loading if we need to fetch messages
+    if (needsFetching) {
       setChatLoading(true);
     }
     
-    // Update chat selection in store - messages will only be fetched if needed
+    // Update chat selection in store - this will trigger fetching messages
     setSelectedChat(chat.id);
     
     // Use router.replace for better navigation without remounting
     router.replace(`/v/chat/${chat.id}`);
     
-    // Mark as read if needed
-    if (unreadCounts[chat.id] > 0) {
-      markChatAsRead(chat.id);
-    }
+    // Mark messages as read (both in store and via socket)
+    markMessagesAsRead(chat.id);
     
-    // Remove loading state after a short delay if needed
-    if (!hasMessages) {
+    // Only set a timeout to clear loading if we actually set it
+    if (needsFetching) {
       setTimeout(() => {
         setChatLoading(false);
-      }, 300);
+      }, 500);
     }
-  }, [setSelectedChat, router, markChatAsRead, unreadCounts, chatMessages]);
+  }, [setSelectedChat, router, markMessagesAsRead, chatMessages]);
 
   return {
     chatList,

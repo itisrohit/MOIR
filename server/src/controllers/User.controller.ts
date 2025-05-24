@@ -4,6 +4,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { ApiError } from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import { AuthRequest } from "../utils/types/auth.types";
+import { broadcastUserStatus } from '../socket/service';
 
 const generateAccessAndRefreshTokens = async (userId: string) => {
   const user = await User.findById(userId);
@@ -253,39 +254,3 @@ export const getAllUsers = asyncHandler(
 );
 
 
-// Update user Status
-export const updateUserStatus = asyncHandler(
-  async (req: AuthRequest, res: Response) => {
-    const { status } = req.body;
-    const userId = req.user?._id;
-
-    if (!userId) {
-      throw new ApiError(401, "Unauthorized access");
-    }
-
-    if (!status || !Object.values(UserStatus).includes(status)) {
-      throw new ApiError(400, "Invalid status value");
-    }
-
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { status },
-      { new: true }
-    ).select("-password");
-
-    if (!updatedUser) {
-      throw new ApiError(404, "User not found");
-    }
-
-    res.status(200).json(
-      new ApiResponse(
-        200,
-        {
-          success: true,
-          user: {},
-        },
-        "User status updated successfully"
-      )
-    );
-  }
-);

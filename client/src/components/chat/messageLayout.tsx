@@ -4,7 +4,10 @@ import { MessageInput } from "./messageInput";
 import { EmptyChat } from "./emptyChat";
 import { EmptyMessage } from "./emptyMessage";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChatData } from "@/store/chatStore";
+import { ChatData, useChatStore } from "@/store/chatStore";
+import { useSocket } from "@/hooks/useSocket";
+import { useEffect, useRef, useState } from "react";
+import { TypingIndicator } from "./typing-indicator"; // Import the component
 
 type MessageLayoutProps = {
   selectedChatId: string | null; 
@@ -12,7 +15,7 @@ type MessageLayoutProps = {
   onSendMessage: (message: string) => void;
   onBack?: () => void;
   showBackButton?: boolean;
-  chatLoading?: boolean; // Add this prop
+  chatLoading?: boolean;
 };
 
 export function MessageLayout({
@@ -23,9 +26,87 @@ export function MessageLayout({
   showBackButton = false,
   chatLoading = false
 }: MessageLayoutProps) {
+  const { typingUsers, unreadCounts } = useChatStore();
+  const { markMessagesAsRead } = useSocket();
+  
+  const hasMarkedAsReadRef = useRef<Record<string, boolean>>({});
+
+
+  const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
+
+  useEffect(() => {
+    if (!selectedChatId || !chatData) {
+      setIsOtherUserTyping(false);
+      return;
+    }
+    
+    const otherUserId = chatData.otherUserId;
+    const conversationTyping = typingUsers[selectedChatId];
+    
+    // Debugging logs
+    console.log('🔍 Checking typing status:', {
+      conversationId: selectedChatId,
+      otherUserId,
+      typingStatus: conversationTyping?.[otherUserId]
+    });
+    
+    // Check if the other user is typing
+    const typing = !!conversationTyping && 
+                   !!otherUserId && 
+                   !!conversationTyping[otherUserId];
+    
+    setIsOtherUserTyping(typing);
+  }, [selectedChatId, chatData, typingUsers]);
+
+  useEffect(() => {
+    if (
+      selectedChatId && 
+      chatData && 
+      !chatLoading && 
+      unreadCounts[selectedChatId] > 0 && 
+      !hasMarkedAsReadRef.current[selectedChatId]
+    ) {
+      hasMarkedAsReadRef.current[selectedChatId] = true;
+      markMessagesAsRead(selectedChatId);
+    }
+  }, [selectedChatId, chatLoading, markMessagesAsRead, chatData, unreadCounts]);
+
+  useEffect(() => {
+    if (selectedChatId) {
+      hasMarkedAsReadRef.current = {};
+    }
+  }, [selectedChatId]);
+
+  useEffect(() => {
+    if (
+      selectedChatId && 
+      chatData?.messages && 
+      chatData.messages.length > 0 && 
+      unreadCounts[selectedChatId] > 0
+    ) {
+      const timer = setTimeout(() => {
+        console.log('Messages changed, marking as read:', selectedChatId);
+        markMessagesAsRead(selectedChatId);
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [chatData?.messages, selectedChatId, unreadCounts, markMessagesAsRead]);
+
+  useEffect(() => {
+    if (
+      selectedChatId && 
+      chatData && 
+      !chatLoading && 
+      unreadCounts[selectedChatId] > 0
+    ) {
+      console.log('Initial read marking for chat:', selectedChatId);
+      markMessagesAsRead(selectedChatId);
+    }
+  }, [selectedChatId, chatLoading, markMessagesAsRead, chatData, unreadCounts]);
+
   return (
     <div className="flex-1 flex flex-col h-full">
-      {/* Only render the empty chat component if we're NOT in mobile view or we DO have a selected chat */}
       {(selectedChatId !== null || !showBackButton) && (
         <>
           {selectedChatId !== null && chatData ? (
@@ -38,9 +119,7 @@ export function MessageLayout({
                 showBackButton={showBackButton}
               />
               
-              {/* Enhanced loading logic to prevent EmptyMessage flash */}
               {chatLoading ? (
-                // Show skeleton while loading
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {[1, 2, 3].map((item) => (
                     <div 
@@ -57,12 +136,10 @@ export function MessageLayout({
                   ))}
                 </div>
               ) : (
-                /* Only show EmptyMessage if we're CERTAIN there are no messages */
                 chatData.messages && chatData.messages.length > 0 ? (
                   <MessageList messages={chatData.messages} />
                 ) : (
                   chatData.lastMessage ? (
-                    // If lastMessage exists but messages array is empty, show skeleton instead of EmptyMessage
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
                       {[1, 2, 3].map((item) => (
                         <div 
@@ -79,7 +156,6 @@ export function MessageLayout({
                       ))}
                     </div>
                   ) : (
-                    // Only show EmptyMessage if there's definitely no lastMessage
                     <EmptyMessage 
                       name={chatData.name} 
                       onSendMessage={onSendMessage} 
@@ -88,7 +164,16 @@ export function MessageLayout({
                 )
               )}
               
-              <MessageInput onSendMessage={onSendMessage} />
+              <TypingIndicator 
+                isTyping={isOtherUserTyping} 
+                className="px-4 pb-1" 
+                userName={chatData?.name}
+              />
+
+              <MessageInput 
+                onSendMessage={onSendMessage} 
+                conversationId={selectedChatId || ""}
+              />
             </>
           ) : (
             <EmptyChat />

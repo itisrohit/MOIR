@@ -26,15 +26,31 @@ export function ChatHeader({ name, avatar, online, onBack, showBackButton = fals
           </Button>
         )}
         
-        <Avatar className="h-10 w-10">
-          <AvatarImage src={avatar} alt={name} />
-          <AvatarFallback>{name.split(" ").map(n => n[0]).join("")}</AvatarFallback>
-        </Avatar>
+        <div className="relative">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={avatar} alt={name} />
+            <AvatarFallback>{name.split(" ").map(n => n[0]).join("")}</AvatarFallback>
+          </Avatar>
+          
+          {/* Add online indicator */}
+          {online && (
+            <span 
+              className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-background"
+              aria-hidden="true"
+            />
+          )}
+        </div>
         
         <div>
           <h2 className="font-medium">{name}</h2>
-          <p className="text-xs text-muted-foreground">
-            {online ? "Online" : "Offline"}
+          <p className="text-xs flex items-center gap-1.5">
+            {online ? (
+              <>
+                <span className="text-green-600 dark:text-green-400 font-medium">Online</span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">Offline</span>
+            )}
           </p>
         </div>
       </div>

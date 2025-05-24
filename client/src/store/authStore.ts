@@ -41,6 +41,7 @@ interface AuthStore {
   verifyUser: () => Promise<void>;
   clearError: () => void;
   localLogout: () => void; 
+  refreshToken: () => Promise<boolean>; 
 }
 
 // Create axios instance with base URL
@@ -130,52 +131,63 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
+      refreshToken: async () => {
+        try {
+          console.log('🔄 Refreshing access token');
+          const response = await api.get<AuthResponse>('/user/access-token');
+          
+          if (response.data.success) {
+            console.log('✅ Token refresh successful');
+            set({
+              accessToken: response.data.data.accessToken || null,
+            });
+            return true;
+          } else {
+            console.log('❌ Token refresh failed:', response.data.message);
+            set({ error: response.data.message });
+            return false;
+          }
+        } catch (error) {
+          console.log('❌ Exception in refreshToken:', error);
+          const errorMessage = error instanceof Error ? error.message : 'Token refresh failed';
+          set({ error: errorMessage });
+          return false;
+        }
+      },
+
       verifyUser: async () => {
         // Remove the early return and token check
         console.log('🔄 Starting user verification');
         try {
           set({ loading: true, error: null });
-          console.log('📡 Making API request to /user/profile');
-          const response = await api.get<AuthResponse>('/user/profile');
-          console.log('✅ API response received:', response.status);
           
-          if (response.data.success) {
-            console.log('✅ Verification successful');
-            set({
-              user: response.data.data.user || null,
-              isAuthenticated: true,
-              loading: false,
-            });
+          // Fetch user profile
+          const profileResponse = await api.get<AuthResponse>('/user/profile');
+          
+          if (profileResponse.data.success) {
+            // Refresh token in parallel
+            const tokenRefreshed = await get().refreshToken();
+            
+            if (tokenRefreshed) {
+              set({
+                user: profileResponse.data.data.user || null,
+                isAuthenticated: true,
+                loading: false,
+              });
+            } else {
+              get().localLogout();
+            }
           } else {
-            console.log('❌ Verification failed with error message:', response.data.message);
-            // If verification fails, log the user out
+            // Handle profile fetch failure
             set({ 
-              error: response.data.message, 
+              error: profileResponse.data.message, 
               loading: false,
-              user: null,
-              accessToken: null,
-              isAuthenticated: false,
             });
-            get().localLogout(); 
+            get().localLogout();
           }
         } catch (error) {
-          // This catch block will handle missing token errors automatically
+          // Handle errors
           console.log('❌ Exception in verifyUser:', error);
-          // Log more details about the error
-          if (axios.isAxiosError(error)) {
-            console.log('Status:', error.response?.status);
-            console.log('Data:', error.response?.data);
-          }
-          
-          const errorMessage = error instanceof Error ? error.message : 'Verification failed';
-          set({ 
-            error: errorMessage, 
-            loading: false,
-            user: null,
-            accessToken: null,
-            isAuthenticated: false,
-          });
-          console.log('🔄 Calling localLogout from verifyUser catch block');
           get().localLogout();
         }
       },
