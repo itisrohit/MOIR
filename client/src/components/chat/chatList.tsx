@@ -7,8 +7,6 @@ import { Search, MessageSquareDot, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatItem, useChatStore } from "@/store/chatStore";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft } from "lucide-react";
-import { useSidebar } from "@/components/layout/sidebar";
 import { useRouter } from "next/navigation"; 
 
 export default function ChatList({
@@ -20,8 +18,7 @@ export default function ChatList({
     mobileView?: boolean;
     selectedChatId: string | null;
 }) {
-    const router = useRouter(); // Add router
-    const { toggleSidebar } = useSidebar();
+    const router = useRouter();
     const [searchTerm, setSearchTerm] = useState("");
     
     // Add subscription to typing users state for real-time updates
@@ -52,19 +49,6 @@ export default function ChatList({
 				!mobileView && "w-80"
 			)}
 		>
-			{/* Add Menu Button for Mobile View */}
-			{mobileView && (
-				<Button
-					variant="ghost"
-					size="icon"
-					onClick={toggleSidebar}
-					className="fixed bottom-4 right-4 h-12 w-12 rounded-full bg-background/95 shadow-md border border-border/60 md:hidden"
-					aria-label="Menu"
-				>
-					<ChevronLeft className="h-5 w-5 text-muted-foreground" />
-				</Button>
-			)}
-
 			{/* Search bar - adjusted height to match header */}
 			<div className="h-[73px] p-4 border-b flex items-center">
 				<div className="relative w-full">

@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import MainLayout from "@/components/layout/main_layout";
 import useAuth from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket"; 
+import { useChatStore } from "@/store/chatStore";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AppInitializer } from "@/components/AppInitializer";
 
 interface VLayoutProps {
   children: React.ReactNode;
@@ -16,9 +18,12 @@ export default function VLayout({ children }: VLayoutProps) {
   const router = useRouter();
   const [isInitialized, setIsInitialized] = useState(false);
   const hasVerified = useRef(false);
+  const pathname = usePathname();
+  const { clearSelectedChat } = useChatStore();
+  const previousPathRef = useRef(pathname);
 
-  // Initialize socket connection for authenticated users
-  useSocket(); // Adding this line - this will handle all socket logic
+  // Initialize socket connection - this one needs to stay here
+  useSocket();
 
   // Separate effect for hydration
   useEffect(() => {
@@ -33,12 +38,8 @@ export default function VLayout({ children }: VLayoutProps) {
       return;
     }
 
-    // Handle auth state
     if (isAuthenticated && !hasVerified.current) {
-      // Mark verification as done to prevent loops
       hasVerified.current = true;
-
-      // Verify token once
       verifyUser().catch(() => {
         router.replace("/auth");
       });
@@ -46,6 +47,24 @@ export default function VLayout({ children }: VLayoutProps) {
       router.replace("/auth");
     }
   }, [isAuthenticated, isInitialized, loading, router, verifyUser]);
+
+  // Chat section navigation handler - keep this for navigation state
+  useEffect(() => {
+    if (previousPathRef.current === pathname) {
+      previousPathRef.current = pathname;
+      return;
+    }
+
+    const wasInChat = previousPathRef.current?.startsWith('/v/chat');
+    const isInChat = pathname?.startsWith('/v/chat');
+    
+    if (wasInChat && !isInChat) {
+      console.log("Navigated away from chat section, clearing selected chat");
+      clearSelectedChat();
+    }
+    
+    previousPathRef.current = pathname;
+  }, [pathname, clearSelectedChat]);
 
   // Show loading state
   if (loading || !isInitialized || (isAuthenticated && !user)) {
@@ -64,6 +83,15 @@ export default function VLayout({ children }: VLayoutProps) {
     return null;
   }
 
-  // Auth verified, render the layout with socket connection active
-  return <MainLayout>{children}</MainLayout>;
+  return (
+    <>
+      {/* Use AppInitializer here */}
+      <AppInitializer />
+      
+      {/* Existing layout */}
+      <MainLayout>
+        {children}
+      </MainLayout>
+    </>
+  );
 }

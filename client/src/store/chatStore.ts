@@ -113,6 +113,7 @@ interface ChatStore {
   updateChatOnlineStatus: (userId: string, isOnline: boolean) => void;
   updateLastMessageInfo: (data: { id: string, lastMessage: string, timestamp: string, updatedAt: string }) => void;
   updateMessageReadStatus: (conversationId: string, messageIds?: string[]) => void; // Add this new action
+  clearSelectedChat: () => void; // Add this new action
 }
 
 // Create the chat store
@@ -192,11 +193,18 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     try {
       // First add the message optimistically to UI
       const tempId = `temp-${Date.now()}`;
+      
+      // Create formatted time with lowercase am/pm
+      const formattedTime = new Date().toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      }).replace(/AM|PM/g, match => match.toLowerCase());
+      
       const tempMessage: Message = {
         id: tempId,
         text,
         sender: 'me',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        time: formattedTime, // Use the lowercase formatted time
         read: false // Initialize as unread
       };
       
@@ -491,7 +499,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         }
       };
     });
-  }
+  },
+
+  // Clear selected chat
+  clearSelectedChat: () => {
+    set({ selectedChatId: null });
+    console.log("Chat state reset - selectedChatId cleared");
+  },
 }));
 
 export default useChatStore;

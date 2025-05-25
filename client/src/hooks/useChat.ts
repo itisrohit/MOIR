@@ -1,12 +1,11 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo} from 'react';
 import { useRouter } from 'next/navigation';
 import { useChatStore } from '@/store/chatStore';
 import { useSocket } from '@/hooks/useSocket'; 
 import type { ChatItem, ChatData } from '@/store/chatStore';
 
-// Create a global variable outside the component to persist across renders
-// This ensures our initialization state survives component remounts
-const GLOBAL_INITIALIZED = { value: false };
+// IMPORTANT: Import the global initialization flag from AppInitializer instead
+import { GLOBAL_APP_INITIALIZED } from '@/components/AppInitializer';
 
 export function useChat(initialChatId: string | null = null) {
   const { 
@@ -20,83 +19,42 @@ export function useChat(initialChatId: string | null = null) {
     updateChatOrder,
   } = useChatStore();
   
-  // Add useSocket hook to access markMessagesAsRead and the socket
   const { markMessagesAsRead } = useSocket();
   
-  // Use the global initialization state
-  const hasInitializedRef = useRef<boolean>(GLOBAL_INITIALIZED.value);
-  const [internalLoading, setInternalLoading] = useState(!GLOBAL_INITIALIZED.value);
+  // Use the shared global initialization state
   const [chatLoading, setChatLoading] = useState(false);
-  const [isInitialized, setIsInitialized] = useState<boolean>(GLOBAL_INITIALIZED.value);
+  const [isInitialized, setIsInitialized] = useState(GLOBAL_APP_INITIALIZED.value);
   const router = useRouter();
   
-  // Safety timeout refs
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const currentLoadingRef = useRef<boolean>(internalLoading);
-
-  // Update ref whenever internalLoading changes
+  // Check if chat list has been loaded but not yet initialized
   useEffect(() => {
-    currentLoadingRef.current = internalLoading;
-  }, [internalLoading]);
-
-  // Safety timeout
-  useEffect(() => {
-    if (internalLoading) {
-      timeoutRef.current = setTimeout(() => {
-        if (currentLoadingRef.current) {
-          console.log("Forcing exit from loading state after timeout");
-          setInternalLoading(false);
-          GLOBAL_INITIALIZED.value = true;
-        }
-      }, 3000);
+    if (chatList.length > 0 && !isInitialized) {
+      console.log("Chat list already populated, marking as initialized");
+      setIsInitialized(true);
     }
-    
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [internalLoading]);
+  }, [chatList.length, isInitialized]);
 
-  // Initialize only once globally
+  // Safety fetch for chat list if needed
   useEffect(() => {
     const initialize = async () => {
-      try {
-        if (!hasInitializedRef.current) {
-          console.log("Initializing chat, fetching chat list (once)...");
-          await fetchChatList();
-          
-          // If we have an initialChatId from props, respect that over stored state
-          // This ensures URL-based navigation works correctly
-          if (initialChatId) {
-            console.log("Setting initial chat ID from URL:", initialChatId);
-            setSelectedChat(initialChatId);
-          } else if (window.location.pathname === '/v/chat') {
-            // Reset selected chat when at root chat URL
-            console.log("At root chat URL, resetting selected chat");
-            setSelectedChat(null);
-          }
-          
-          hasInitializedRef.current = true;
-          GLOBAL_INITIALIZED.value = true;
-          setIsInitialized(true);
-          setInternalLoading(false);
-        }
-      } catch (err) {
-        console.error("Error initializing chat:", err);
-        setInternalLoading(false);
+      // Only fetch if not already initialized AND chat list is empty
+      if (!isInitialized && chatList.length === 0) {
+        console.log("Safety fetch: chat list empty, fetching...");
+        await fetchChatList();
+        setIsInitialized(true);
       }
     };
     
     initialize();
-  }, [fetchChatList, initialChatId, setSelectedChat]);
+  }, [fetchChatList, chatList.length, isInitialized]);
 
-  // Force exit loading when chatList is available
+  // Handle initialChatId from URL
   useEffect(() => {
-    if (chatList.length > 0 && !isInitialized) {
-      setInternalLoading(false);
-      setIsInitialized(true);
-      GLOBAL_INITIALIZED.value = true;
+    if (initialChatId) {
+      console.log("Setting initial chat ID from URL:", initialChatId);
+      setSelectedChat(initialChatId);
     }
-  }, [chatList, isInitialized]);
+  }, [initialChatId, setSelectedChat]);
 
   // Selected chat data memoized
   const selectedChat = useMemo(() => 
@@ -159,9 +117,10 @@ export function useChat(initialChatId: string | null = null) {
     chatList,
     selectedChat,
     chatData,
-    loading: internalLoading,
+    // Simplified loading state
+    loading: !isInitialized && chatList.length === 0,
     chatLoading,
-    error, 
+    error,
     isInitialized,
     handleSelectChat,
     handleBackButton: useCallback(() => {

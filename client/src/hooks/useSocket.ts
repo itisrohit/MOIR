@@ -64,6 +64,10 @@ interface FriendResponseEvent {
   };
 }
 
+// Global flags to track socket connection and event handlers
+let socketInitialized = false;
+let handlersRegistered = false;
+
 export const useSocket = () => {
   const socketRef = useRef<Socket | null>(null);
   const { accessToken, isAuthenticated } = useAuthStore();
@@ -75,20 +79,27 @@ export const useSocket = () => {
     markChatAsRead 
   } = useChatStore();
   
-  // Connect socket when authenticated
+  // Connect socket when authenticated - but only initialize once
   useEffect(() => {
     if (!isAuthenticated || !accessToken) return;
     
-    console.log("Connecting socket in component");
-    socketRef.current = connectSocket(accessToken);
+    if (!socketInitialized) {
+      console.log("Initializing global socket connection");
+      socketRef.current = connectSocket(accessToken);
+      socketInitialized = true;
+    } else {
+      console.log("Socket already initialized, reusing connection");
+      socketRef.current = getSocket();
+    }
     
+    // No cleanup needed for page navigation - socket persists
     return () => {
-      console.log("Component unmounting, managing socket connection");
-      disconnectSocket(true); // Track component unmount but don't force disconnect
+      // Don't disconnect socket on component unmount
+      console.log("Component unmounting, keeping socket connection");
     };
   }, [isAuthenticated, accessToken]);
   
-  // Register event handlers
+  // Register event handlers - but only once globally
   useEffect(() => {
     // Always use the global socket to ensure consistent event handling
     const socket = getSocket();
@@ -97,22 +108,46 @@ export const useSocket = () => {
       return;
     }
     
-    console.log("Registering socket event handlers");
+    // Skip if handlers are already registered
+    if (handlersRegistered) {
+      console.log("Event handlers already registered, skipping");
+      return;
+    }
+    
+    console.log("Registering socket event handlers GLOBALLY");
+    handlersRegistered = true;
     
     const messageHandler = (messageData: MessageData) => {
+      // Ensure lowercase am/pm for incoming messages
+      if (messageData.time) {
+        messageData.time = messageData.time.replace(/AM|PM/g, match => match.toLowerCase());
+      }
+      
       console.log('Message received:', messageData);
       const { conversationId } = messageData;
       
       // Get current state to check for active chat
       const state = useChatStore.getState();
-      const isActiveChat = state.selectedChatId === conversationId;
       const currentUserId = useAuthStore.getState().user?._id;
+      
+      // Check BOTH if this is the selected chat AND if we're on a chat page
+      // by examining the current path
+      const currentPath = window.location.pathname;
+      const isOnChatPage = currentPath.startsWith('/v/chat');
+      const isActiveChat = isOnChatPage && state.selectedChatId === conversationId;
+      
+      console.log('Message active status check:', {
+        conversationId,
+        selectedChatId: state.selectedChatId,
+        isOnChatPage,
+        isActiveChat,
+        path: currentPath
+      });
       
       // Transform the message to match our Message type
       const transformedMessage: Message = {
         id: messageData.id,
         text: messageData.text,
-        // Correctly map the sender to either "me" or "other"
         sender: messageData.sender === currentUserId ? "me" : "other",
         time: messageData.time,
         read: messageData.read,
@@ -183,21 +218,11 @@ export const useSocket = () => {
       setUserTyping(conversationId, userId, isTyping);
     };
     
-    // Register all handlers
-    socket.on(EVENTS.MESSAGE_RECEIVE, messageHandler);
-    socket.on(EVENTS.USER_ONLINE, onlineHandler);
-    socket.on(EVENTS.USER_OFFLINE, offlineHandler);
-    socket.on(EVENTS.CHAT_MESSAGE_UPDATE, messageUpdateHandler);
-    socket.on(EVENTS.USER_TYPING, typingHandler);
-    
-    // Add this new handler for read receipts
+    // Add this handler for read receipts
     const readReceiptHandler = ({ conversationId, messageIds }: ReadReceiptEvent) => {
       console.log('Messages marked as read by recipient:', messageIds);
       useChatStore.getState().updateMessageReadStatus(conversationId, messageIds);
     };
-    
-    // Register the handler
-    socket.on(EVENTS.MESSAGE_READ_ACK, readReceiptHandler);
     
     // Friend-related event handlers
     const friendRequestHandler = (data: FriendRequestEvent) => {
@@ -288,34 +313,28 @@ export const useSocket = () => {
       }, 500);
     };
 
-    // Register the friend-related event handlers
+    // Register all handlers
+    socket.on(EVENTS.MESSAGE_RECEIVE, messageHandler);
+    socket.on(EVENTS.USER_ONLINE, onlineHandler);
+    socket.on(EVENTS.USER_OFFLINE, offlineHandler);
+    socket.on(EVENTS.CHAT_MESSAGE_UPDATE, messageUpdateHandler);
+    socket.on(EVENTS.USER_TYPING, typingHandler);
+    socket.on(EVENTS.MESSAGE_READ_ACK, readReceiptHandler);
     socket.on(EVENTS.FRIEND_REQUEST_SENT, friendRequestHandler);
     socket.on(EVENTS.FRIEND_REQUEST_RESPONDED, friendResponseHandler);
     socket.on(EVENTS.FRIEND_REQUEST_SEEN, friendRequestSeenHandler);
     socket.on(EVENTS.FRIEND_NOTIFICATIONS_CLEARED, friendNotificationsClearedHandler);
     
-    // Clean up event handlers
-    return () => {
-      console.log("Cleaning up socket event handlers");
-      socket.off(EVENTS.MESSAGE_RECEIVE, messageHandler);
-      socket.off(EVENTS.USER_ONLINE, onlineHandler);
-      socket.off(EVENTS.USER_OFFLINE, offlineHandler);
-      socket.off(EVENTS.CHAT_MESSAGE_UPDATE, messageUpdateHandler);
-      socket.off(EVENTS.USER_TYPING, typingHandler);
-      socket.off(EVENTS.MESSAGE_READ_ACK, readReceiptHandler);
-      socket.off(EVENTS.FRIEND_REQUEST_SENT, friendRequestHandler);
-      socket.off(EVENTS.FRIEND_REQUEST_RESPONDED, friendResponseHandler);
-      socket.off(EVENTS.FRIEND_REQUEST_SEEN, friendRequestSeenHandler);
-      socket.off(EVENTS.FRIEND_NOTIFICATIONS_CLEARED, friendNotificationsClearedHandler);
-    };
+    // No cleanup function - we want these handlers to persist
   }, [updateChatOnlineStatus, addNewMessage, updateLastMessageInfo, setUserTyping, markChatAsRead]);
   
   // Function to send typing status
   const sendTypingStatus = useCallback((conversationId: string, isTyping: boolean) => {
-    if (!socketRef.current) return;
+    const socket = socketRef.current || getSocket();
+    if (!socket) return;
     
     console.log('Sending typing status:', isTyping, 'for', conversationId);
-    socketRef.current.emit(EVENTS.USER_TYPING, {
+    socket.emit(EVENTS.USER_TYPING, {
       conversationId,
       isTyping
     });
@@ -323,10 +342,11 @@ export const useSocket = () => {
   
   // Function to mark messages as read
   const markMessagesAsRead = useCallback((conversationId: string) => {
-    if (!socketRef.current) return;
+    const socket = socketRef.current || getSocket();
+    if (!socket) return;
     
     console.log('Marking messages as read in:', conversationId);
-    socketRef.current.emit(EVENTS.MESSAGE_READ, {
+    socket.emit(EVENTS.MESSAGE_READ, {
       conversationId
     });
     
@@ -334,10 +354,33 @@ export const useSocket = () => {
     markChatAsRead(conversationId);
   }, [markChatAsRead]);
 
+  // Add a specific cleanup function for logout
+  const cleanupSocket = useCallback(() => {
+    console.log("Forcing socket disconnection and removing handlers (e.g. on logout)");
+    
+    // Get the socket before disconnecting
+    const socket = getSocket();
+    
+    // Remove all event listeners before disconnecting
+    if (socket) {
+      Object.values(EVENTS).forEach(event => {
+        socket.removeAllListeners(event);
+      });
+    }
+    
+    // Reset our global flags
+    handlersRegistered = false;
+    socketInitialized = false;
+    
+    // Disconnect the socket
+    disconnectSocket(false); // Force disconnect
+  }, []);
+
   return {
-    socket: socketRef.current,
+    socket: socketRef.current || getSocket(),
     sendTypingStatus,
-    markMessagesAsRead 
+    markMessagesAsRead,
+    cleanupSocket // Export this so it can be called on logout
   };
 };
 

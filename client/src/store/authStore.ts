@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import axios from 'axios';
+import { disconnectSocket } from '@/socket/socket';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
@@ -59,7 +60,6 @@ export const useAuthStore = create<AuthStore>()(
       accessToken: null,
       loading: false,
       error: null,
-
       register: async (username, email, password, name) => {
         try {
           set({ loading: true, error: null });
@@ -128,7 +128,7 @@ export const useAuthStore = create<AuthStore>()(
           // Force logout on client side even if API call fails
           console.log('⚠️ Server logout failed, falling back to client-side logout');
           get().localLogout();
-        }
+        } 
       },
 
       refreshToken: async () => {
@@ -199,6 +199,11 @@ export const useAuthStore = create<AuthStore>()(
       // Add localLogout as a store method
       localLogout: () => {
         console.log('⚠️ localLogout called');
+        
+        // 1. Disconnect socket - do this before refresh for clean socket shutdown
+        disconnectSocket();
+        
+        // 2. Clear auth state - important for persistence
         set({
           user: null,
           accessToken: null,
@@ -206,13 +211,20 @@ export const useAuthStore = create<AuthStore>()(
           loading: false,
         });
         
-        // Clear cookies and localStorage
+        // 3. Clear cookies
         document.cookie.split(";").forEach((c) => {
           document.cookie = c
             .replace(/^ +/, "")
             .replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
         });
+        
+        // 4. Clear localStorage items
         localStorage.removeItem('auth-storage');
+        
+        // 5. Refresh the page to reset all application state
+        if (typeof window !== 'undefined') {
+          window.location.href = '/auth'; // Redirect to login page
+        }
       },
     }),
     {

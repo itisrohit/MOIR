@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from "@/components/ui/skeleton"; 
 import { IoPersonAdd } from 'react-icons/io5';
 import { FiCheck, FiX, FiSearch, FiUsers, FiMail, FiSend } from 'react-icons/fi';
+import { Check } from 'lucide-react';
 
 export default function FriendsPage() {
   const {
@@ -29,6 +30,7 @@ export default function FriendsPage() {
 
   const [newFriendInput, setNewFriendInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showReadConfirmation, setShowReadConfirmation] = useState(false);
 
   // Filter friends based on search query
   const filteredFriends = friends.filter(friend => 
@@ -42,6 +44,13 @@ export default function FriendsPage() {
       await sendFriendRequest(newFriendInput.trim());
       setNewFriendInput('');
     }
+  };
+
+  // Function to handle marking all as read
+  const handleMarkAllRead = async () => {
+    await markAllAsRead();
+    setShowReadConfirmation(true);
+    setTimeout(() => setShowReadConfirmation(false), 2000);
   };
 
   if (loading && friends.length === 0 && incomingRequests.length === 0 && outgoingRequests.length === 0) {
@@ -92,7 +101,39 @@ export default function FriendsPage() {
 
   return (
     <div className="container max-w-4xl mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold mb-6">Friends</h1>
+      {/* Title row with text-based mark all read button */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Friends</h1>
+        
+        {/* Only show the button when there are unread items */}
+        {unreadCounts?.total > 0 && (
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleMarkAllRead}
+            className={`transition-colors flex items-center gap-2 ${
+              showReadConfirmation ? 'bg-green-50 text-green-600 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800' : ''
+            }`}
+          >
+            {showReadConfirmation ? (
+              <>
+                <Check className="h-4 w-4" />
+                <span>Marked as read</span>
+              </>
+            ) : (
+              <>
+                <Badge 
+                  variant="secondary" 
+                  className="h-5 w-5 p-0 flex items-center justify-center rounded-full text-xs"
+                >
+                  {unreadCounts.total}
+                </Badge>
+                <span>Mark all read</span>
+              </>
+            )}
+          </Button>
+        )}
+      </div>
       
       {/* Add friend form */}
       <Card className="mb-6">
