@@ -16,7 +16,8 @@ export const registerSocketHandlers = (io: Server) => {
     
     // Update user status to online
     if (socket.user?._id) {
-      updateUserOnlineStatus(socket.user._id.toString(), true)
+      const userId = socket.user._id.toString();
+      updateUserOnlineStatus(userId, true)
         .catch(console.error);
     }
     
@@ -63,19 +64,11 @@ export const registerSocketHandlers = (io: Server) => {
     });
     
     // Handle disconnect
-    socket.on(SOCKET_EVENTS.DISCONNECT, async () => {
-      console.log(`User disconnected: ${socket.user?._id}`);
-      
+    socket.on(SOCKET_EVENTS.DISCONNECT, () => {
       if (socket.user?._id) {
-        await updateUserOnlineStatus(socket.user._id.toString(), false)
+        const userId = socket.user._id.toString();
+        updateUserOnlineStatus(userId, false)
           .catch(console.error);
-        
-        // Clean up typing indicators (keep this part)
-        typingUsers.forEach((users, conversationId) => {
-          if (users[socket.user?._id.toString()]) {
-            delete users[socket.user._id.toString()];
-          }
-        });
       }
     });
     
