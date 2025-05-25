@@ -3,7 +3,8 @@ import { Socket } from 'socket.io-client';
 import { connectSocket, disconnectSocket, getSocket } from '@/socket/socket';
 import { EVENTS } from '@/socket/socketEvents';
 import { useAuthStore } from '@/store/authStore';
-import { useChatStore, Message } from '@/store/chatStore'; // Import Message type here
+import { useChatStore, Message } from '@/store/chatStore'; 
+import { useFriendStore } from '@/store/friendStore';
 
 interface MessageData {
   id: string;
@@ -36,6 +37,31 @@ interface ReadReceiptEvent {
   conversationId: string;
   messageIds: string[];
   readBy?: string;
+}
+
+// First, ensure the interfaces match exactly what the server sends
+interface FriendRequestEvent {
+  requestId: string;
+  requester: {
+    _id: string;
+    name: string;
+    username: string;
+    image: string;
+    status: string;
+  };
+  isRead: boolean;
+}
+
+interface FriendResponseEvent {
+  friendshipId: string;
+  accepted: boolean;
+  user: {
+    _id: string;
+    name: string;
+    username: string;
+    image: string;
+    status: string;
+  };
 }
 
 export const useSocket = () => {
@@ -127,12 +153,18 @@ export const useSocket = () => {
     // Create named handlers for better cleanup
     const onlineHandler = ({ userId }: UserStatusEvent) => {
       console.log('User online:', userId);
+      // Update chat store
       updateChatOnlineStatus(userId, true);
+      // Update friend store as well
+      useFriendStore.getState().updateFriendStatus(userId, true);
     };
     
     const offlineHandler = ({ userId }: UserStatusEvent) => {
       console.log('User offline:', userId);
+      // Update chat store
       updateChatOnlineStatus(userId, false);
+      // Update friend store as well
+      useFriendStore.getState().updateFriendStatus(userId, false);
     };
     
     const messageUpdateHandler = (data: ChatUpdateEvent) => {
@@ -167,6 +199,101 @@ export const useSocket = () => {
     // Register the handler
     socket.on(EVENTS.MESSAGE_READ_ACK, readReceiptHandler);
     
+    // Friend-related event handlers
+    const friendRequestHandler = (data: FriendRequestEvent) => {
+      console.log('Friend request received:', data);
+      try {
+        // Validate the incoming data has the required fields
+        if (!data.requestId || !data.requester || !data.requester._id) {
+          console.error('Invalid friend request data received:', data);
+          return;
+        }
+
+        // Transform to match the store's expected format
+        const friendRequest = {
+          id: data.requestId,
+          user: data.requester,
+          createdAt: new Date().toISOString(),
+          isRead: !!data.isRead
+        };
+        
+        // Update the friend store
+        useFriendStore.getState().addFriendRequest(friendRequest);
+        
+        // Force a refresh of incoming requests to ensure UI updates
+        setTimeout(() => {
+          useFriendStore.getState().fetchFriendRequests('incoming');
+        }, 500);
+      } catch (error) {
+        console.error('Error processing friend request:', error);
+      }
+    };
+
+    const friendResponseHandler = (data: FriendResponseEvent) => {
+      console.log('Friend request response received:', data);
+      try {
+        // Validate incoming data
+        if (!data.friendshipId) {
+          console.error('Invalid friend response data:', data);
+          return;
+        }
+        
+        // Update the friend request status
+        useFriendStore.getState().updateFriendRequestStatus(
+          data.friendshipId, 
+          data.accepted
+        );
+        
+        // If accepted, ensure friends list is refreshed
+        if (data.accepted) {
+          // Force fetch friends after a short delay to ensure server has updated
+          setTimeout(() => {
+            useFriendStore.getState().fetchFriends();
+          }, 500);
+        }
+        
+        // Always refresh outgoing requests to keep UI in sync
+        setTimeout(() => {
+          useFriendStore.getState().fetchFriendRequests('outgoing');
+        }, 800);
+      } catch (error) {
+        console.error('Error processing friend response:', error);
+      }
+    };
+
+    const friendRequestSeenHandler = ({ friendshipId }: { friendshipId: string }) => {
+      console.log('Friend request seen:', friendshipId);
+      if (!friendshipId) {
+        console.error('Invalid friendshipId in seen event');
+        return;
+      }
+      
+      // Mark request as seen in store
+      useFriendStore.getState().markRequestAsSeen(friendshipId);
+      
+      // Update incoming requests to reflect the change
+      setTimeout(() => {
+        useFriendStore.getState().fetchFriendRequests('incoming');
+      }, 500);
+    };
+
+    const friendNotificationsClearedHandler = () => {
+      console.log('Friend notifications cleared');
+      // Update local state
+      useFriendStore.getState().clearAllNotifications();
+      
+      // Refresh all requests to ensure UI sync
+      setTimeout(() => {
+        useFriendStore.getState().fetchFriendRequests();
+      }, 500);
+    };
+
+    // Register the friend-related event handlers
+    socket.on(EVENTS.FRIEND_REQUEST_SENT, friendRequestHandler);
+    socket.on(EVENTS.FRIEND_REQUEST_RESPONDED, friendResponseHandler);
+    socket.on(EVENTS.FRIEND_REQUEST_SEEN, friendRequestSeenHandler);
+    socket.on(EVENTS.FRIEND_NOTIFICATIONS_CLEARED, friendNotificationsClearedHandler);
+    
     // Clean up event handlers
     return () => {
       console.log("Cleaning up socket event handlers");
@@ -176,6 +303,10 @@ export const useSocket = () => {
       socket.off(EVENTS.CHAT_MESSAGE_UPDATE, messageUpdateHandler);
       socket.off(EVENTS.USER_TYPING, typingHandler);
       socket.off(EVENTS.MESSAGE_READ_ACK, readReceiptHandler);
+      socket.off(EVENTS.FRIEND_REQUEST_SENT, friendRequestHandler);
+      socket.off(EVENTS.FRIEND_REQUEST_RESPONDED, friendResponseHandler);
+      socket.off(EVENTS.FRIEND_REQUEST_SEEN, friendRequestSeenHandler);
+      socket.off(EVENTS.FRIEND_NOTIFICATIONS_CLEARED, friendNotificationsClearedHandler);
     };
   }, [updateChatOnlineStatus, addNewMessage, updateLastMessageInfo, setUserTyping, markChatAsRead]);
   

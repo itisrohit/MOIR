@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, createContext, useContext, useCallback } from "react";
+import { useState, createContext, useContext, useCallback, useEffect, useMemo } from "react";
 import { MessageSquare, Users, LogOut, ChevronLeft, ChevronRight, User } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation"; // Add these imports
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import useAuth from "@/hooks/useAuth";
 import { toastSuccess } from "@/utility/toastStyle";
 import { useChatStore } from "@/store/chatStore";
+import useFriendStore from "@/store/friendStore"; // Import friend store
 
 // Context definition remains the same
 export const SidebarContext = createContext({
@@ -29,23 +31,48 @@ export function Sidebar() {
   const [activeItem, setActiveItem] = useState("Chat");
   const { isVisible, toggleSidebar, messageViewActive } = useSidebar();
   const { logout, user } = useAuth();
+  const router = useRouter(); // Add router
+  const pathname = usePathname(); // Add pathname to detect current route
   
   // Get unread counts from chat store
   const { unreadCounts } = useChatStore();
   
+  // Get friend unread counts
+  const { unreadCounts: friendUnreadCounts } = useFriendStore();
+  
   // Calculate total unread messages
   const totalUnreadMessages = Object.values(unreadCounts).reduce((total, count) => total + count, 0);
 
-  const navItems = [
+  // Memoize navItems to prevent recreating on every render
+  const navItems = useMemo(() => [
     { 
       name: "Chat", 
+      path: "/v/chat",
       icon: <MessageSquare className="h-5 w-5" />,
       badge: totalUnreadMessages > 0 ? totalUnreadMessages : null  
     },
-    { name: "Friends", icon: <Users className="h-5 w-5" /> }
-  ];
+    { 
+      name: "Friends", 
+      path: "/v/friends",
+      icon: <Users className="h-5 w-5" />,
+      badge: friendUnreadCounts?.total > 0 ? friendUnreadCounts.total : null
+    }
+  ], [totalUnreadMessages, friendUnreadCounts?.total]);  // Include only the dependencies that affect navItems
 
-  // Define all callback functions at the top level
+  // Update active item based on pathname when component mounts
+  useEffect(() => {  // Change useState to useEffect
+    const currentRoute = navItems.find(item => pathname.startsWith(item.path));
+    if (currentRoute) {
+      setActiveItem(currentRoute.name);
+    }
+  }, [pathname, navItems]);  // Now navItems won't change on every render
+
+  // Modified handler for navigation item clicks
+  const handleNavItemClick = useCallback((item: { name: string; path: string }) => {
+    setActiveItem(item.name);
+    router.push(item.path);
+  }, [router]);
+
   const handleLogout = useCallback(() => {
     toastSuccess("Logged Out", {
       description: "You have been successfully logged out",
@@ -53,11 +80,6 @@ export function Sidebar() {
     });
     logout();
   }, [logout]);
-
-  // Create a handler for navigation item clicks
-  const handleNavItemClick = useCallback((itemName: string) => {
-    setActiveItem(itemName);
-  }, []);
 
   return (
     <>
@@ -131,7 +153,7 @@ export function Sidebar() {
 
         <Separator className="w-[80%] mx-auto opacity-50" />
 
-        {/* Navigation Items - REMOVED TOOLTIPS */}
+        {/* Navigation Items - Updated onClick handler */}
         <div className="px-2 py-6 flex-1">
           <nav className="space-y-6 md:space-y-8 flex flex-col items-center">
             {navItems.map((item) => (
@@ -139,14 +161,14 @@ export function Sidebar() {
                 key={item.name}
                 variant="ghost"
                 size="icon"
-                onClick={() => handleNavItemClick(item.name)}
+                onClick={() => handleNavItemClick(item)}
                 className={cn(
                   "h-11 w-11 rounded-xl transition-all relative",
                   activeItem === item.name 
                     ? "bg-primary/10 text-primary shadow-sm" 
                     : "hover:bg-muted"
                 )}
-                title={item.name} // Basic HTML tooltip as fallback
+                title={item.name}
               >
                 {item.icon}
                 
@@ -156,9 +178,6 @@ export function Sidebar() {
                     {item.badge > 99 ? "99+" : item.badge}
                   </span>
                 )}
-                
-                {/* REMOVE THIS TEXT LABEL FOR MOBILE */}
-                {/* <span className="md:hidden text-xs mt-1">{item.name}</span> */}
               </Button>
             ))}
           </nav>

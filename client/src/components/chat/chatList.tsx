@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquareDot } from "lucide-react";
+import { Search, MessageSquareDot, UserPlus } from "lucide-react"; 
 import { cn } from "@/lib/utils";
 import { ChatItem, useChatStore } from "@/store/chatStore";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 import { useSidebar } from "@/components/layout/sidebar";
+import { useRouter } from "next/navigation"; 
 
 export default function ChatList({
     onSelectChat,
@@ -19,6 +20,7 @@ export default function ChatList({
     mobileView?: boolean;
     selectedChatId: string | null;
 }) {
+    const router = useRouter(); // Add router
     const { toggleSidebar } = useSidebar();
     const [searchTerm, setSearchTerm] = useState("");
     
@@ -78,11 +80,31 @@ export default function ChatList({
 
 			{/* Chat list */}
 			<div className="flex-1 overflow-y-auto">
-				{filteredChats.length === 0 ? (
+				{chatList.length === 0 ? (
+					// New user with no chats - show find friends option
+					<div className="flex flex-col items-center justify-center h-full text-center p-6 gap-4">
+						<div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center">
+							<UserPlus className="h-8 w-8 text-muted-foreground" />
+						</div>
+						<h3 className="text-lg font-medium">No chats yet</h3>
+						<p className="text-sm text-muted-foreground mb-2">
+							Start by adding friends to begin messaging with them
+						</p>
+						<Button 
+							onClick={() => router.push('/v/friends')}
+							className="mt-2"
+						>
+							<UserPlus className="mr-2 h-4 w-4" />
+							Find Friends
+						</Button>
+					</div>
+				) : filteredChats.length === 0 ? (
+					// User has chats but none match the search
 					<div className="flex items-center justify-center h-full text-muted-foreground">
 						No chats found
 					</div>
 				) : (
+					// Normal chat list display
 					filteredChats.map((chat) => {
                         // Check if someone is typing in this chat
                         const isTyping = isUserTypingInChat(chat.id);
