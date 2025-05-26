@@ -1,6 +1,6 @@
 import { Message } from "@/store/chatStore";
 import { useRef, useLayoutEffect } from "react";
-import { Check } from "lucide-react"; // Import the check icon
+import { Check } from "lucide-react";
 
 type MessageListProps = {
   messages: Message[];
@@ -24,21 +24,25 @@ export function MessageList({ messages }: MessageListProps) {
   return (
     <div 
       ref={containerRef}
-      className="flex-1 overflow-y-auto p-4 space-y-4"
+      className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 w-full"
     >
       {messages.map((message) => (
         <div 
           key={message.id} 
-          className={`flex ${message.sender === 'me' ? 'justify-end' : 'justify-start'}`}
+          className="flex w-full"
+          style={{
+            justifyContent: message.sender === 'me' ? 'flex-end' : 'flex-start'
+          }}
         >
           <div 
-            className={`max-w-[70%] rounded-xl p-3 ${
+            className={`max-w-[70%] rounded-xl p-3 break-words ${
               message.sender === 'me' 
                 ? 'bg-primary text-primary-foreground' 
                 : 'bg-accent'
             }`}
           >
-            <p>{message.text}</p>
+            <p className="whitespace-normal break-words">{message.text}</p>
+            
             <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${
               message.sender === 'me' 
                 ? 'text-primary-foreground/70' 

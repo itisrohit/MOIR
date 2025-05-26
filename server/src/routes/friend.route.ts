@@ -5,8 +5,7 @@ import {
   respondToFriendRequest,
   getFriendRequests,
   getFriends,
-  getNotifications,
-  markNotificationsAsRead
+  markAllAsRead
 } from '../controllers/friend.controller';
 
 const router = express.Router();
@@ -21,8 +20,7 @@ router.post('/:friendshipId/respond', respondToFriendRequest);
 router.get('/list', getFriends);
 router.get('/requests', getFriendRequests);
 
-
-router.get('/notifications', getNotifications);
-router.post('/notifications/mark-read', markNotificationsAsRead);
+// Notification management endpoints
+router.post('/mark-all-read', markAllAsRead);
 
 export default router;

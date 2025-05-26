@@ -3,7 +3,8 @@ import { Socket } from 'socket.io-client';
 import { connectSocket, disconnectSocket, getSocket } from '@/socket/socket';
 import { EVENTS } from '@/socket/socketEvents';
 import { useAuthStore } from '@/store/authStore';
-import { useChatStore, Message } from '@/store/chatStore'; // Import Message type here
+import { useChatStore, Message } from '@/store/chatStore'; 
+import { useFriendStore } from '@/store/friendStore';
 
 interface MessageData {
   id: string;
@@ -38,6 +39,46 @@ interface ReadReceiptEvent {
   readBy?: string;
 }
 
+// First, ensure the interfaces match exactly what the server sends
+interface FriendRequestEvent {
+  requestId: string;
+  requester: {
+    _id: string;
+    name: string;
+    username: string;
+    image: string;
+    status: string;
+  };
+  isRead: boolean;
+}
+
+interface FriendResponseEvent {
+  friendshipId: string;
+  accepted: boolean;
+  user: {
+    _id: string;
+    name: string;
+    username: string;
+    image: string;
+    status: string;
+  };
+}
+
+// Add this interface for user update events
+interface UserUpdateEvent {
+  user: {
+    _id: string;
+    name: string;
+    username: string;
+    image: string;
+    status: string;
+  };
+}
+
+// Global flags to track socket connection and event handlers
+let socketInitialized = false;
+let handlersRegistered = false;
+
 export const useSocket = () => {
   const socketRef = useRef<Socket | null>(null);
   const { accessToken, isAuthenticated } = useAuthStore();
@@ -49,20 +90,27 @@ export const useSocket = () => {
     markChatAsRead 
   } = useChatStore();
   
-  // Connect socket when authenticated
+  // Connect socket when authenticated - but only initialize once
   useEffect(() => {
     if (!isAuthenticated || !accessToken) return;
     
-    console.log("Connecting socket in component");
-    socketRef.current = connectSocket(accessToken);
+    if (!socketInitialized) {
+      console.log("Initializing global socket connection");
+      socketRef.current = connectSocket(accessToken);
+      socketInitialized = true;
+    } else {
+      console.log("Socket already initialized, reusing connection");
+      socketRef.current = getSocket();
+    }
     
+    // No cleanup needed for page navigation - socket persists
     return () => {
-      console.log("Component unmounting, managing socket connection");
-      disconnectSocket(true); // Track component unmount but don't force disconnect
+      // Don't disconnect socket on component unmount
+      console.log("Component unmounting, keeping socket connection");
     };
   }, [isAuthenticated, accessToken]);
   
-  // Register event handlers
+  // Register event handlers - but only once globally
   useEffect(() => {
     // Always use the global socket to ensure consistent event handling
     const socket = getSocket();
@@ -71,22 +119,46 @@ export const useSocket = () => {
       return;
     }
     
-    console.log("Registering socket event handlers");
+    // Skip if handlers are already registered
+    if (handlersRegistered) {
+      console.log("Event handlers already registered, skipping");
+      return;
+    }
+    
+    console.log("Registering socket event handlers GLOBALLY");
+    handlersRegistered = true;
     
     const messageHandler = (messageData: MessageData) => {
+      // Ensure lowercase am/pm for incoming messages
+      if (messageData.time) {
+        messageData.time = messageData.time.replace(/AM|PM/g, match => match.toLowerCase());
+      }
+      
       console.log('Message received:', messageData);
       const { conversationId } = messageData;
       
       // Get current state to check for active chat
       const state = useChatStore.getState();
-      const isActiveChat = state.selectedChatId === conversationId;
       const currentUserId = useAuthStore.getState().user?._id;
+      
+      // Check BOTH if this is the selected chat AND if we're on a chat page
+      // by examining the current path
+      const currentPath = window.location.pathname;
+      const isOnChatPage = currentPath.startsWith('/v/chat');
+      const isActiveChat = isOnChatPage && state.selectedChatId === conversationId;
+      
+      console.log('Message active status check:', {
+        conversationId,
+        selectedChatId: state.selectedChatId,
+        isOnChatPage,
+        isActiveChat,
+        path: currentPath
+      });
       
       // Transform the message to match our Message type
       const transformedMessage: Message = {
         id: messageData.id,
         text: messageData.text,
-        // Correctly map the sender to either "me" or "other"
         sender: messageData.sender === currentUserId ? "me" : "other",
         time: messageData.time,
         read: messageData.read,
@@ -127,12 +199,18 @@ export const useSocket = () => {
     // Create named handlers for better cleanup
     const onlineHandler = ({ userId }: UserStatusEvent) => {
       console.log('User online:', userId);
+      // Update chat store
       updateChatOnlineStatus(userId, true);
+      // Update friend store as well
+      useFriendStore.getState().updateFriendStatus(userId, true);
     };
     
     const offlineHandler = ({ userId }: UserStatusEvent) => {
       console.log('User offline:', userId);
+      // Update chat store
       updateChatOnlineStatus(userId, false);
+      // Update friend store as well
+      useFriendStore.getState().updateFriendStatus(userId, false);
     };
     
     const messageUpdateHandler = (data: ChatUpdateEvent) => {
@@ -151,40 +229,156 @@ export const useSocket = () => {
       setUserTyping(conversationId, userId, isTyping);
     };
     
+    // Add this handler for read receipts
+    const readReceiptHandler = ({ conversationId, messageIds }: ReadReceiptEvent) => {
+      console.log('Messages marked as read by recipient:', messageIds);
+      useChatStore.getState().updateMessageReadStatus(conversationId, messageIds);
+    };
+    
+    // Friend-related event handlers
+    const friendRequestHandler = (data: FriendRequestEvent) => {
+      console.log('Friend request received:', data);
+      try {
+        // Validate the incoming data has the required fields
+        if (!data.requestId || !data.requester || !data.requester._id) {
+          console.error('Invalid friend request data received:', data);
+          return;
+        }
+
+        // Transform to match the store's expected format
+        const friendRequest = {
+          id: data.requestId,
+          user: data.requester,
+          createdAt: new Date().toISOString(),
+          isRead: !!data.isRead
+        };
+        
+        // Update the friend store
+        useFriendStore.getState().addFriendRequest(friendRequest);
+        
+        // Force a refresh of incoming requests to ensure UI updates
+        setTimeout(() => {
+          useFriendStore.getState().fetchFriendRequests('incoming');
+        }, 500);
+      } catch (error) {
+        console.error('Error processing friend request:', error);
+      }
+    };
+
+    const friendResponseHandler = (data: FriendResponseEvent) => {
+      console.log('Friend request response received:', data);
+      try {
+        // Validate incoming data
+        if (!data.friendshipId) {
+          console.error('Invalid friend response data:', data);
+          return;
+        }
+        
+        // Update the friend request status
+        useFriendStore.getState().updateFriendRequestStatus(
+          data.friendshipId, 
+          data.accepted
+        );
+        
+        // If accepted, ensure friends list is refreshed
+        if (data.accepted) {
+          // Force fetch friends after a short delay to ensure server has updated
+          setTimeout(() => {
+            useFriendStore.getState().fetchFriends();
+          }, 500);
+        }
+        
+        // Always refresh outgoing requests to keep UI in sync
+        setTimeout(() => {
+          useFriendStore.getState().fetchFriendRequests('outgoing');
+        }, 800);
+      } catch (error) {
+        console.error('Error processing friend response:', error);
+      }
+    };
+
+    const friendRequestSeenHandler = ({ friendshipId }: { friendshipId: string }) => {
+      console.log('Friend request seen:', friendshipId);
+      if (!friendshipId) {
+        console.error('Invalid friendshipId in seen event');
+        return;
+      }
+      
+      // Mark request as seen in store
+      useFriendStore.getState().markRequestAsSeen(friendshipId);
+      
+      // Update incoming requests to reflect the change
+      setTimeout(() => {
+        useFriendStore.getState().fetchFriendRequests('incoming');
+      }, 500);
+    };
+
+    const friendNotificationsClearedHandler = () => {
+      console.log('Friend notifications cleared');
+      // Update local state
+      useFriendStore.getState().clearAllNotifications();
+      
+      // Refresh all requests to ensure UI sync
+      setTimeout(() => {
+        useFriendStore.getState().fetchFriendRequests();
+      }, 500);
+    };
+
+    // Add handler for user profile updates
+    const userUpdatedHandler = (data: UserUpdateEvent) => {
+      console.log('User profile updated:', data);
+      
+      if (!data.user || !data.user._id) {
+        console.error('Invalid user update data:', data);
+        return;
+      }
+      
+      const updatedUser = data.user;
+      const currentUser = useAuthStore.getState().user;
+      
+      // If this is the current user, update auth store
+      if (currentUser && currentUser._id === updatedUser._id) {
+        // Update the current user's profile in auth store
+        // Merge with existing user data to avoid losing fields not included in the update
+        useAuthStore.getState().updateUserInStore({
+          ...currentUser,
+          name: updatedUser.name,
+          username: updatedUser.username,
+          image: updatedUser.image,
+          status: updatedUser.status,
+        });
+      }
+      
+      // Update user in chat store (for conversations with this user)
+      useChatStore.getState().updateUserInfo(updatedUser);
+      
+      // Update user in friend store (for friends list)
+      useFriendStore.getState().updateFriendInfo(updatedUser);
+    };
+
     // Register all handlers
     socket.on(EVENTS.MESSAGE_RECEIVE, messageHandler);
     socket.on(EVENTS.USER_ONLINE, onlineHandler);
     socket.on(EVENTS.USER_OFFLINE, offlineHandler);
     socket.on(EVENTS.CHAT_MESSAGE_UPDATE, messageUpdateHandler);
     socket.on(EVENTS.USER_TYPING, typingHandler);
-    
-    // Add this new handler for read receipts
-    const readReceiptHandler = ({ conversationId, messageIds }: ReadReceiptEvent) => {
-      console.log('Messages marked as read by recipient:', messageIds);
-      useChatStore.getState().updateMessageReadStatus(conversationId, messageIds);
-    };
-    
-    // Register the handler
     socket.on(EVENTS.MESSAGE_READ_ACK, readReceiptHandler);
+    socket.on(EVENTS.FRIEND_REQUEST_SENT, friendRequestHandler);
+    socket.on(EVENTS.FRIEND_REQUEST_RESPONDED, friendResponseHandler);
+    socket.on(EVENTS.FRIEND_REQUEST_SEEN, friendRequestSeenHandler);
+    socket.on(EVENTS.FRIEND_NOTIFICATIONS_CLEARED, friendNotificationsClearedHandler);
+    socket.on(EVENTS.USER_UPDATED, userUpdatedHandler);
     
-    // Clean up event handlers
-    return () => {
-      console.log("Cleaning up socket event handlers");
-      socket.off(EVENTS.MESSAGE_RECEIVE, messageHandler);
-      socket.off(EVENTS.USER_ONLINE, onlineHandler);
-      socket.off(EVENTS.USER_OFFLINE, offlineHandler);
-      socket.off(EVENTS.CHAT_MESSAGE_UPDATE, messageUpdateHandler);
-      socket.off(EVENTS.USER_TYPING, typingHandler);
-      socket.off(EVENTS.MESSAGE_READ_ACK, readReceiptHandler);
-    };
+    // No cleanup function - we want these handlers to persist
   }, [updateChatOnlineStatus, addNewMessage, updateLastMessageInfo, setUserTyping, markChatAsRead]);
   
   // Function to send typing status
   const sendTypingStatus = useCallback((conversationId: string, isTyping: boolean) => {
-    if (!socketRef.current) return;
+    const socket = socketRef.current || getSocket();
+    if (!socket) return;
     
     console.log('Sending typing status:', isTyping, 'for', conversationId);
-    socketRef.current.emit(EVENTS.USER_TYPING, {
+    socket.emit(EVENTS.USER_TYPING, {
       conversationId,
       isTyping
     });
@@ -192,10 +386,11 @@ export const useSocket = () => {
   
   // Function to mark messages as read
   const markMessagesAsRead = useCallback((conversationId: string) => {
-    if (!socketRef.current) return;
+    const socket = socketRef.current || getSocket();
+    if (!socket) return;
     
     console.log('Marking messages as read in:', conversationId);
-    socketRef.current.emit(EVENTS.MESSAGE_READ, {
+    socket.emit(EVENTS.MESSAGE_READ, {
       conversationId
     });
     
@@ -203,10 +398,33 @@ export const useSocket = () => {
     markChatAsRead(conversationId);
   }, [markChatAsRead]);
 
+  // Add a specific cleanup function for logout
+  const cleanupSocket = useCallback(() => {
+    console.log("Forcing socket disconnection and removing handlers (e.g. on logout)");
+    
+    // Get the socket before disconnecting
+    const socket = getSocket();
+    
+    // Remove all event listeners before disconnecting
+    if (socket) {
+      Object.values(EVENTS).forEach(event => {
+        socket.removeAllListeners(event);
+      });
+    }
+    
+    // Reset our global flags
+    handlersRegistered = false;
+    socketInitialized = false;
+    
+    // Disconnect the socket
+    disconnectSocket(false); // Force disconnect
+  }, []);
+
   return {
-    socket: socketRef.current,
+    socket: socketRef.current || getSocket(),
     sendTypingStatus,
-    markMessagesAsRead 
+    markMessagesAsRead,
+    cleanupSocket // Export this so it can be called on logout
   };
 };
 

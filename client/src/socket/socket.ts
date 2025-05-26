@@ -61,9 +61,11 @@ export const connectSocket = (token: string) => {
     socket.connect();
   }
 
-  // Track component connection
-  connectedComponents++;
-  console.log(`Component connected to socket (total: ${connectedComponents})`);
+  // Only increment if actually connecting
+  if (!socket.connected) {
+    connectedComponents++;
+    console.log(`Component connected to socket (total: ${connectedComponents})`);
+  }
 
   return socket;
 };

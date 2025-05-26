@@ -6,6 +6,12 @@ import { ApiError } from '../utils/ApiError';
 import { ApiResponse } from '../utils/ApiResponse';
 import { AuthRequest } from '../utils/types/auth.types';
 import { FriendDocument, PopulatedFriendDocument, UserDocument } from '../utils/types/friend.types';
+import { 
+  notifyFriendRequest, 
+  notifyFriendRequestResponse,
+  notifyFriendRequestSeen,
+  notifyFriendNotificationsCleared
+} from '../socket/services/friend.service';
 
 // Send a friend request
 export const sendFriendRequest = asyncHandler(
@@ -94,6 +100,9 @@ export const sendFriendRequest = asyncHandler(
       requestRead: false
     }) as unknown as FriendDocument;
 
+    // Send socket notification
+    await notifyFriendRequest(recipientId.toString(), req.user, newFriendship._id.toString());
+
     res.status(201).json(
       new ApiResponse(
         201,
@@ -126,6 +135,14 @@ export const respondToFriendRequest = asyncHandler(
       throw new ApiError(404, "Friend request not found or already processed");
     }
 
+    // If request wasn't read before, notify requester that it's been seen now
+    if (!friendship.requestRead) {
+      await notifyFriendRequestSeen(
+        friendship.requester.toString(),
+        friendshipId
+      );
+    }
+
     // Mark request as read
     friendship.requestRead = true;
     
@@ -139,6 +156,13 @@ export const respondToFriendRequest = asyncHandler(
 
     await friendship.save();
 
+    // Send socket notification to the requester
+    await notifyFriendRequestResponse(
+      friendship.requester.toString(),
+      friendship,
+      accept === true
+    );
+
     res.status(200).json(
       new ApiResponse(
         200,
@@ -148,8 +172,6 @@ export const respondToFriendRequest = asyncHandler(
     );
   }
 );
-
-
 
 // Get all friends
 export const getFriends = asyncHandler(
@@ -198,180 +220,33 @@ export const getFriends = asyncHandler(
   }
 );
 
-// Get all notifications (requests + acceptances) with optional filtering
-export const getNotifications = asyncHandler(
-  async (req: AuthRequest, res: Response) => {
-    const userId = req.user?._id;
-    const { type } = req.query; // Optional: 'requests', 'acceptances', or undefined for all
-
-    if (!userId) {
-      throw new ApiError(401, "Unauthorized access");
-    }
-
-    // Update the notification data structure
-    const notificationsData: {
-      requests?: any[];
-      acceptances?: any[];
-      unreadCounts: {  // Renamed from "counts" to "unreadCounts"
-        total: number;
-        requests: number;
-        acceptances: number;
-      }
-    } = {
-      unreadCounts: {  // Renamed from "counts" to "unreadCounts" 
-        total: 0,
-        requests: 0,
-        acceptances: 0
-      }
-    };
-
-    // Get unread requests if needed
-    if (!type || type === 'requests') {
-      const requests = await Friend.find({
-        recipient: userId,
-        status: FriendshipStatus.PENDING,
-        requestRead: false
-      })
-      .populate('requester', 'name username image status')
-      .sort({ createdAt: -1 }) as unknown as PopulatedFriendDocument[];
-
-      notificationsData.requests = requests.map(request => ({
-        id: request._id,
-        type: 'request',
-        user: request.requester,
-        createdAt: request.createdAt
-      }));
-
-      // Update references to the counts property
-      notificationsData.unreadCounts.requests = notificationsData.requests.length;
-    }
-
-    // Get unread acceptances if needed
-    if (!type || type === 'acceptances') {
-      const acceptances = await Friend.find({
-        requester: userId,
-        status: FriendshipStatus.ACCEPTED,
-        acceptanceRead: false
-      })
-      .populate('recipient', 'name username image status')
-      .sort({ updatedAt: -1 }) as unknown as PopulatedFriendDocument[];
-
-      notificationsData.acceptances = acceptances.map(acceptance => ({
-        id: acceptance._id,
-        type: 'acceptance',
-        user: acceptance.recipient,
-        acceptedAt: acceptance.updatedAt
-      }));
-
-      // Update references to the counts property
-      notificationsData.unreadCounts.acceptances = notificationsData.acceptances.length;
-    }
-
-    // Calculate total count
-    notificationsData.unreadCounts.total = 
-      notificationsData.unreadCounts.requests + notificationsData.unreadCounts.acceptances;
-
-    res.status(200).json(
-      new ApiResponse(
-        200,
-        notificationsData,
-        "Notifications fetched successfully"
-      )
-    );
-  }
-);
-
-// Mark notifications as read
-export const markNotificationsAsRead = asyncHandler(
-  async (req: AuthRequest, res: Response) => {
-    const userId = req.user?._id;
-    const { type, ids } = req.body;
-    // type: 'requests', 'acceptances', or 'all'
-    // ids: optional array of specific notification IDs to mark as read
-    
-    if (!userId) {
-      throw new ApiError(401, "Unauthorized access");
-    }
-
-    if (!type || !['requests', 'acceptances', 'all'].includes(type)) {
-      throw new ApiError(400, "Invalid notification type");
-    }
-
-    const updates = { updatedAt: new Date() };
-    const updateResults = {
-      requests: 0,
-      acceptances: 0,
-      total: 0
-    };
-
-    // Mark friend requests as read
-    if (type === 'requests' || type === 'all') {
-      const requestQuery: any = {
-        recipient: userId,
-        status: FriendshipStatus.PENDING,
-        requestRead: false
-      };
-      
-      // If specific IDs are provided, add them to the query
-      if (ids && ids.length > 0) {
-        requestQuery._id = { $in: ids };
-      }
-      
-      const requestResult = await Friend.updateMany(
-        requestQuery,
-        { requestRead: true, ...updates }
-      );
-      
-      updateResults.requests = requestResult.modifiedCount;
-    }
-
-    // Mark acceptances as read
-    if (type === 'acceptances' || type === 'all') {
-      const acceptanceQuery: any = {
-        requester: userId,
-        status: FriendshipStatus.ACCEPTED,
-        acceptanceRead: false
-      };
-      
-      // If specific IDs are provided, add them to the query
-      if (ids && ids.length > 0) {
-        acceptanceQuery._id = { $in: ids };
-      }
-      
-      const acceptanceResult = await Friend.updateMany(
-        acceptanceQuery,
-        { acceptanceRead: true, ...updates }
-      );
-      
-      updateResults.acceptances = acceptanceResult.modifiedCount;
-    }
-
-    updateResults.total = updateResults.requests + updateResults.acceptances;
-
-    res.status(200).json(
-      new ApiResponse(
-        200,
-        updateResults,
-        `${updateResults.total} notifications marked as read`
-      )
-    );
-  }
-);
-
-// Get friend requests - can fetch incoming, outgoing, or both
+// Get friend requests with unread counts and acceptances - replaces both getFriendRequests and getNotifications
 export const getFriendRequests = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const userId = req.user?._id;
-    const { direction = 'all' } = req.query; // 'incoming', 'outgoing', or 'all'
+    const { direction = 'all' } = req.query; // 'incoming', 'outgoing', 'all'
 
     if (!userId) {
       throw new ApiError(401, "Unauthorized access");
     }
 
+    // Structure for the response
     const result: {
       incoming?: any[];
       outgoing?: any[];
-    } = {};
+      acceptances?: any[];
+      unreadCounts: {
+        total: number;
+        incoming: number;
+        acceptances: number;
+      }
+    } = {
+      unreadCounts: {
+        total: 0,
+        incoming: 0,
+        acceptances: 0
+      }
+    };
 
     // Get incoming requests if needed
     if (direction === 'incoming' || direction === 'all') {
@@ -388,6 +263,9 @@ export const getFriendRequests = asyncHandler(
         createdAt: request.createdAt,
         isRead: request.requestRead
       }));
+      
+      // Count unread incoming requests
+      result.unreadCounts.incoming = incomingRequests.filter(req => !req.requestRead).length;
     }
 
     // Get outgoing requests if needed
@@ -406,11 +284,104 @@ export const getFriendRequests = asyncHandler(
       }));
     }
 
+    // Get acceptances (friend requests that were accepted but not yet seen)
+    const acceptances = await Friend.find({
+      requester: userId,
+      status: FriendshipStatus.ACCEPTED,
+      acceptanceRead: false
+    })
+    .populate('recipient', 'name username image status')
+    .sort({ updatedAt: -1 }) as unknown as PopulatedFriendDocument[];
+
+    result.acceptances = acceptances.map(acceptance => ({
+      id: acceptance._id,
+      user: acceptance.recipient,
+      acceptedAt: acceptance.updatedAt
+    }));
+    
+    // Count unread acceptances
+    result.unreadCounts.acceptances = acceptances.length;
+    
+    // Calculate total unread
+    result.unreadCounts.total = result.unreadCounts.incoming + result.unreadCounts.acceptances;
+
     res.status(200).json(
       new ApiResponse(
         200,
         result,
-        "Friend requests fetched successfully"
+        "Friend requests and notifications fetched successfully"
+      )
+    );
+  }
+);
+
+// Mark all friend requests and acceptances as read
+export const markAllAsRead = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?._id;
+
+    if (!userId) {
+      throw new ApiError(401, "Unauthorized access");
+    }
+
+    // Mark all incoming friend requests as read
+    const incomingResult = await Friend.updateMany(
+      {
+        recipient: userId,
+        status: FriendshipStatus.PENDING,
+        requestRead: false
+      },
+      { requestRead: true }
+    );
+
+    // Mark all acceptances as read
+    const acceptancesResult = await Friend.updateMany(
+      {
+        requester: userId,
+        status: FriendshipStatus.ACCEPTED,
+        acceptanceRead: false
+      },
+      { acceptanceRead: true }
+    );
+
+    const totalUpdated = incomingResult.modifiedCount + acceptancesResult.modifiedCount;
+    
+    // Get the incoming requests that were marked as read to send notifications
+    if (incomingResult.modifiedCount > 0) {
+      const friendships = await Friend.find({
+        recipient: userId,
+        status: FriendshipStatus.PENDING,
+        requestRead: true
+      }).lean(); // Using lean() for better performance
+      
+      // Notify each requester that their request has been seen
+      for (const friendship of friendships) {
+        await notifyFriendRequestSeen(
+          friendship.requester.toString(),
+          friendship._id.toString() // Cast to string to solve type issue
+        );
+      }
+    }
+    
+    // Send notification that all were marked as read (useful for multi-device sync)
+    await notifyFriendNotificationsCleared(
+      userId.toString(), 
+      { 
+        total: totalUpdated,
+        requestsRead: incomingResult.modifiedCount,
+        acceptancesRead: acceptancesResult.modifiedCount
+      }
+    );
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        { 
+          updated: totalUpdated,
+          requestsRead: incomingResult.modifiedCount,
+          acceptancesRead: acceptancesResult.modifiedCount
+        },
+        "All notifications marked as read"
       )
     );
   }

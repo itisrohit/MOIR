@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import axios from 'axios';
+import { disconnectSocket } from '@/socket/socket';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
 // Types
-interface User {
+export interface User {
   _id: string;
   username: string;
   email: string;
@@ -42,6 +43,11 @@ interface AuthStore {
   clearError: () => void;
   localLogout: () => void; 
   refreshToken: () => Promise<boolean>; 
+  
+  // Adding these new methods
+  updateProfile: (userData: Partial<{name: string, username: string, email: string}>, image?: File) => Promise<void>;
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  updateUserInStore: (user: User) => void;
 }
 
 // Create axios instance with base URL
@@ -59,7 +65,6 @@ export const useAuthStore = create<AuthStore>()(
       accessToken: null,
       loading: false,
       error: null,
-
       register: async (username, email, password, name) => {
         try {
           set({ loading: true, error: null });
@@ -128,7 +133,7 @@ export const useAuthStore = create<AuthStore>()(
           // Force logout on client side even if API call fails
           console.log('⚠️ Server logout failed, falling back to client-side logout');
           get().localLogout();
-        }
+        } 
       },
 
       refreshToken: async () => {
@@ -199,6 +204,11 @@ export const useAuthStore = create<AuthStore>()(
       // Add localLogout as a store method
       localLogout: () => {
         console.log('⚠️ localLogout called');
+        
+        // 1. Disconnect socket - do this before refresh for clean socket shutdown
+        disconnectSocket();
+        
+        // 2. Clear auth state - important for persistence
         set({
           user: null,
           accessToken: null,
@@ -206,13 +216,89 @@ export const useAuthStore = create<AuthStore>()(
           loading: false,
         });
         
-        // Clear cookies and localStorage
+        // 3. Clear cookies
         document.cookie.split(";").forEach((c) => {
           document.cookie = c
             .replace(/^ +/, "")
             .replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
         });
+        
+        // 4. Clear localStorage items
         localStorage.removeItem('auth-storage');
+        
+        // 5. Refresh the page to reset all application state
+        if (typeof window !== 'undefined') {
+          window.location.href = '/auth'; // Redirect to login page
+        }
+      },
+      
+      updateProfile: async (userData, image) => {
+        try {
+          set({ loading: true, error: null });
+          
+          // Create FormData for multipart/form-data request
+          const formData = new FormData();
+          
+          // Add text fields if they exist
+          if (userData.name) formData.append('name', userData.name);
+          if (userData.username) formData.append('username', userData.username);
+          if (userData.email) formData.append('email', userData.email);
+          
+          // Add image if provided
+          if (image) formData.append('image', image);
+          
+          const response = await api.put('/user/update', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+          
+          if (response.data.success) {
+            // Update user in state
+            set({ 
+              user: response.data.data.user,
+              loading: false,
+            });
+          } else {
+            set({ error: response.data.message, loading: false });
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error 
+            ? error.message 
+            : 'Profile update failed';
+          set({ error: errorMessage, loading: false });
+        }
+      },
+      
+      updatePassword: async (currentPassword, newPassword) => {
+        try {
+          set({ loading: true, error: null });
+          
+          const response = await api.put('/user/update-password', {
+            currentPassword,
+            newPassword,
+          });
+          
+          if (response.data.success) {
+            // Update access token since it was refreshed
+            set({
+              accessToken: response.data.data.accessToken || null,
+              loading: false,
+            });
+          } else {
+            set({ error: response.data.message, loading: false });
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error 
+            ? error.message 
+            : 'Password update failed';
+          set({ error: errorMessage, loading: false });
+        }
+      },
+
+      updateUserInStore: (user: User) => {
+        set({ user });
+        console.log('User profile updated in store via socket:', user);
       },
     }),
     {
