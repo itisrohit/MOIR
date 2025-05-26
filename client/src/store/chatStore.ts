@@ -114,10 +114,11 @@ interface ChatStore {
   updateLastMessageInfo: (data: { id: string, lastMessage: string, timestamp: string, updatedAt: string }) => void;
   updateMessageReadStatus: (conversationId: string, messageIds?: string[]) => void; // Add this new action
   clearSelectedChat: () => void; // Add this new action
+  updateUserInfo: (user: { _id: string, name: string, username: string, image: string, status: string }) => void;
 }
 
 // Create the chat store
-export const useChatStore = create<ChatStore>((set, get) => ({
+export const useChatStore = create<ChatStore>()((set, get) => ({
   // Initial state
   chatList: [],
   chatMessages: {},
@@ -505,6 +506,27 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   clearSelectedChat: () => {
     set({ selectedChatId: null });
     console.log("Chat state reset - selectedChatId cleared");
+  },
+
+  // Update user info in chat store
+  updateUserInfo: (user: { _id: string, name: string, username: string, image: string, status: string }) => {
+    set(state => {
+      // Create a new chat list with updated user info
+      const updatedChatList = state.chatList.map(chat => {
+        if (chat.otherUserId === user._id) {
+          return {
+            ...chat,
+            name: user.name, // Update name
+            avatar: user.image, // Update avatar
+            online: user.status === 'online', // Update online status
+          };
+        }
+        return chat;
+      });
+      
+      return { chatList: updatedChatList };
+    });
+    console.log('User info updated in chat store:', user._id);
   },
 }));
 

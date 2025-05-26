@@ -64,6 +64,17 @@ interface FriendResponseEvent {
   };
 }
 
+// Add this interface for user update events
+interface UserUpdateEvent {
+  user: {
+    _id: string;
+    name: string;
+    username: string;
+    image: string;
+    status: string;
+  };
+}
+
 // Global flags to track socket connection and event handlers
 let socketInitialized = false;
 let handlersRegistered = false;
@@ -313,6 +324,38 @@ export const useSocket = () => {
       }, 500);
     };
 
+    // Add handler for user profile updates
+    const userUpdatedHandler = (data: UserUpdateEvent) => {
+      console.log('User profile updated:', data);
+      
+      if (!data.user || !data.user._id) {
+        console.error('Invalid user update data:', data);
+        return;
+      }
+      
+      const updatedUser = data.user;
+      const currentUser = useAuthStore.getState().user;
+      
+      // If this is the current user, update auth store
+      if (currentUser && currentUser._id === updatedUser._id) {
+        // Update the current user's profile in auth store
+        // Merge with existing user data to avoid losing fields not included in the update
+        useAuthStore.getState().updateUserInStore({
+          ...currentUser,
+          name: updatedUser.name,
+          username: updatedUser.username,
+          image: updatedUser.image,
+          status: updatedUser.status,
+        });
+      }
+      
+      // Update user in chat store (for conversations with this user)
+      useChatStore.getState().updateUserInfo(updatedUser);
+      
+      // Update user in friend store (for friends list)
+      useFriendStore.getState().updateFriendInfo(updatedUser);
+    };
+
     // Register all handlers
     socket.on(EVENTS.MESSAGE_RECEIVE, messageHandler);
     socket.on(EVENTS.USER_ONLINE, onlineHandler);
@@ -324,6 +367,7 @@ export const useSocket = () => {
     socket.on(EVENTS.FRIEND_REQUEST_RESPONDED, friendResponseHandler);
     socket.on(EVENTS.FRIEND_REQUEST_SEEN, friendRequestSeenHandler);
     socket.on(EVENTS.FRIEND_NOTIFICATIONS_CLEARED, friendNotificationsClearedHandler);
+    socket.on(EVENTS.USER_UPDATED, userUpdatedHandler);
     
     // No cleanup function - we want these handlers to persist
   }, [updateChatOnlineStatus, addNewMessage, updateLastMessageInfo, setUserTyping, markChatAsRead]);

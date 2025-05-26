@@ -5,6 +5,7 @@ export const EVENTS = {
   USER_ONLINE: 'user:online',
   USER_OFFLINE: 'user:offline',
   USER_TYPING: 'user:typing',
+  USER_UPDATED: 'user:updated', 
   
   // Friend events
   FRIEND_REQUEST_SENT: 'friend:request:sent',

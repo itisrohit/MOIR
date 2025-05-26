@@ -89,6 +89,9 @@ export const useAuth = () => {
         logout,
         clearError: store.clearError,
         
+        // Direct user update without API calls
+        updateUserInStore: store.updateUserInStore,
+        
         // Protection helpers
         requireAuth,
         redirectIfAuthenticated,

@@ -6,7 +6,7 @@ import { disconnectSocket } from '@/socket/socket';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
 // Types
-interface User {
+export interface User {
   _id: string;
   username: string;
   email: string;
@@ -43,6 +43,11 @@ interface AuthStore {
   clearError: () => void;
   localLogout: () => void; 
   refreshToken: () => Promise<boolean>; 
+  
+  // Adding these new methods
+  updateProfile: (userData: Partial<{name: string, username: string, email: string}>, image?: File) => Promise<void>;
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  updateUserInStore: (user: User) => void;
 }
 
 // Create axios instance with base URL
@@ -225,6 +230,75 @@ export const useAuthStore = create<AuthStore>()(
         if (typeof window !== 'undefined') {
           window.location.href = '/auth'; // Redirect to login page
         }
+      },
+      
+      updateProfile: async (userData, image) => {
+        try {
+          set({ loading: true, error: null });
+          
+          // Create FormData for multipart/form-data request
+          const formData = new FormData();
+          
+          // Add text fields if they exist
+          if (userData.name) formData.append('name', userData.name);
+          if (userData.username) formData.append('username', userData.username);
+          if (userData.email) formData.append('email', userData.email);
+          
+          // Add image if provided
+          if (image) formData.append('image', image);
+          
+          const response = await api.put('/user/update', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+          
+          if (response.data.success) {
+            // Update user in state
+            set({ 
+              user: response.data.data.user,
+              loading: false,
+            });
+          } else {
+            set({ error: response.data.message, loading: false });
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error 
+            ? error.message 
+            : 'Profile update failed';
+          set({ error: errorMessage, loading: false });
+        }
+      },
+      
+      updatePassword: async (currentPassword, newPassword) => {
+        try {
+          set({ loading: true, error: null });
+          
+          const response = await api.put('/user/update-password', {
+            currentPassword,
+            newPassword,
+          });
+          
+          if (response.data.success) {
+            // Update access token since it was refreshed
+            set({
+              accessToken: response.data.data.accessToken || null,
+              loading: false,
+            });
+          } else {
+            set({ error: response.data.message, loading: false });
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error 
+            ? error.message 
+            : 'Password update failed';
+          set({ error: errorMessage, loading: false });
+        }
+      },
+
+      updateUserInStore: (user: User) => {
+        set({ user });
+        console.log('User profile updated in store via socket:', user);
       },
     }),
     {

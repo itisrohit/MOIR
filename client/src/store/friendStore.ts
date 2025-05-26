@@ -108,6 +108,7 @@ interface FriendStore {
   respondToFriendRequest: (friendshipId: string, accept: boolean) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   clearError: () => void;
+  updateFriendInfo: (user: { _id: string, name: string, username: string, image: string, status: string }) => void;
   
   // Socket event handlers
   addFriendRequest: (request: FriendRequest) => void;
@@ -117,7 +118,7 @@ interface FriendStore {
   updateFriendStatus: (userId: string, isOnline: boolean) => void;
 }
 
-export const useFriendStore = create<FriendStore>((set, get) => ({
+export const useFriendStore = create<FriendStore>()((set, get) => ({
   // Initial state
   friends: [],
   incomingRequests: [],
@@ -283,6 +284,66 @@ export const useFriendStore = create<FriendStore>((set, get) => ({
     set({ error: null });
   },
 
+  // Update friend info in the store
+  updateFriendInfo: (user: { _id: string, name: string, username: string, image: string, status: string }) => {
+    set(state => {
+      // Update in friends list
+      const updatedFriends = state.friends.map(friend => {
+        if (friend.userId === user._id) { 
+          return {
+            ...friend,
+            name: user.name,         
+            username: user.username,  
+            image: user.image,
+            status: user.status
+          };
+        }
+        return friend;
+      });
+      
+      // Update in incoming requests (this part is correct)
+      const updatedIncoming = state.incomingRequests.map(request => {
+        if (request.user._id === user._id) {
+          return {
+            ...request,
+            user: {
+              ...request.user,
+              name: user.name,
+              username: user.username,
+              image: user.image,
+              status: user.status
+            }
+          };
+        }
+        return request;
+      });
+      
+      // Update in outgoing requests (this part is correct)
+      const updatedOutgoing = state.outgoingRequests.map(request => {
+        if (request.user._id === user._id) {
+          return {
+            ...request,
+            user: {
+              ...request.user,
+              name: user.name,
+              username: user.username,
+              image: user.image,
+              status: user.status
+            }
+          };
+        }
+        return request;
+      });
+      
+      return { 
+        friends: updatedFriends,
+        incomingRequests: updatedIncoming,
+        outgoingRequests: updatedOutgoing
+      };
+    });
+    console.log('Friend info updated in friend store:', user._id);
+  },
+  
   // Socket event handlers
   addFriendRequest: (request: FriendRequest) => {
     set(state => {
