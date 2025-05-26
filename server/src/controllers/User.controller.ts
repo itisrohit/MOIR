@@ -4,7 +4,9 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { ApiError } from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import { AuthRequest } from "../utils/types/auth.types";
-import { broadcastUserStatus } from '../socket/service';
+import { deleteImage } from '../middlewares/cloudinary.middleware';
+import { broadcastToAll } from '../socket/service';
+import { SOCKET_EVENTS } from '../socket/events';
 
 const generateAccessAndRefreshTokens = async (userId: string) => {
   const user = await User.findById(userId);
@@ -169,8 +171,6 @@ export const logoutUser = asyncHandler(
   }
 );
 
-
-
 // Get user profile
 export const getUserProfile = asyncHandler(
   async (req: AuthRequest, res: Response) => {
@@ -192,8 +192,6 @@ export const getUserProfile = asyncHandler(
     );
   }
 );
-
-
 
 export const refreshAccessToken = asyncHandler(
   async (req: AuthRequest, res: Response) => {
@@ -222,7 +220,6 @@ export const refreshAccessToken = asyncHandler(
   }
 );
 
-
 // Get all users
 export const getAllUsers = asyncHandler(
   async (req: AuthRequest, res: Response) => {
@@ -250,6 +247,183 @@ export const getAllUsers = asyncHandler(
         "Users fetched successfully"
       )
     );
+  }
+);
+
+// Update user information (now with image upload and real-time updates)
+export const updateUserInfo = asyncHandler(
+  async (req: AuthRequest & { file?: Express.Multer.File }, res: Response) => {
+    const userId = req.user?._id;
+    if (!userId) {
+      throw new ApiError(401, "Unauthorized access");
+    }
+
+    const { name, username, email } = req.body;
+    
+    // Check for required fields - either form fields or file
+    if (!name && !username && !email && !req.file) {
+      throw new ApiError(400, "At least one field is required to update");
+    }
+    
+    // If username or email is being updated, check for duplicates
+    if (username || email) {
+      const existingUser = await User.findOne({
+        $and: [
+          { _id: { $ne: userId } }, // Not the current user
+          { $or: [
+            ...(username ? [{ username }] : []),
+            ...(email ? [{ email }] : [])
+          ]}
+        ]
+      });
+      
+      if (existingUser) {
+        throw new ApiError(409, "Username or email already in use");
+      }
+    }
+    
+    // Find the user to check for existing image
+    const existingUser = await User.findById(userId);
+    if (!existingUser) {
+      throw new ApiError(404, "User not found");
+    }
+    
+    // Handle image deletion if uploading a new one
+    let oldImagePublicId = null;
+    if (req.file && existingUser.image && existingUser.image.includes('cloudinary')) {
+      try {
+        // Extract public ID from URL pattern: /profile_images/filename
+        const urlParts = existingUser.image.split('/');
+        const folderIndex = urlParts.findIndex(part => part === 'profile_images');
+        
+        if (folderIndex >= 0 && folderIndex < urlParts.length - 1) {
+          // Get filename without extension
+          const filename = urlParts[folderIndex + 1].split('.')[0];
+          oldImagePublicId = `profile_images/${filename}`;
+        }
+      } catch (err) {
+        console.error("Error extracting public ID:", err);
+        // Continue anyway - just won't delete old image
+      }
+    }
+    
+    // Create update object with only provided fields
+    const updateData: { [key: string]: any } = {};
+    if (name) updateData.name = name;
+    if (username) updateData.username = username.toLowerCase();
+    if (email) updateData.email = email.toLowerCase();
+    if (req.file) updateData.image = req.file.path; // Use path from Cloudinary upload
+    
+    // Update user
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true }
+    ).select("-password");
+    
+    if (!updatedUser) {
+      throw new ApiError(404, "User not found");
+    }
+    
+    // Delete old image if needed
+    if (oldImagePublicId) {
+      deleteImage(oldImagePublicId).catch(err => {
+        console.error("Error deleting old image:", err);
+      });
+    }
+    
+    // Broadcast user update to all connected clients
+    try {
+      // Send only necessary user data
+      const userData = {
+        _id: updatedUser._id,
+        name: updatedUser.name,
+        username: updatedUser.username,
+        image: updatedUser.image,
+        status: updatedUser.status
+      };
+      
+      console.log("Broadcasting user update:", userData);
+      broadcastToAll(userId.toString(), SOCKET_EVENTS.USER_UPDATED, { user: userData });
+    } catch (socketError) {
+      console.error("Error broadcasting user update:", socketError);
+      // Continue with response even if socket broadcast fails
+    }
+    
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          success: true,
+          user: updatedUser
+        },
+        "User information updated successfully"
+      )
+    );
+  }
+);
+
+// Update user password
+export const updateUserPassword = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?._id;
+    if (!userId) {
+      throw new ApiError(401, "Unauthorized access");
+    }
+    
+    const { currentPassword, newPassword } = req.body;
+    
+    // Validate inputs
+    if (!currentPassword || !newPassword) {
+      throw new ApiError(400, "Current password and new password are required");
+    }
+    
+    if (currentPassword === newPassword) {
+      throw new ApiError(400, "New password must be different from current password");
+    }
+    
+    // Password complexity validation
+    if (newPassword.length < 8) {
+      throw new ApiError(400, "Password must be at least 8 characters long");
+    }
+    
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+    
+    // Verify current password
+    const isPasswordCorrect = await user.isPasswordCorrect(currentPassword);
+    if (!isPasswordCorrect) {
+      throw new ApiError(401, "Current password is incorrect");
+    }
+    
+    // Update password
+    user.password = newPassword;
+    await user.save(); // This will trigger the pre-save hook to hash the password
+    
+    // Generate new tokens for security
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(userId);
+    
+    res
+      .cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      })
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            success: true,
+            accessToken
+          },
+          "Password updated successfully"
+        )
+      );
   }
 );
 

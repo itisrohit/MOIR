@@ -5,6 +5,7 @@ export const SOCKET_EVENTS = {
   USER_ONLINE: 'user:online',
   USER_OFFLINE: 'user:offline',
   USER_TYPING: 'user:typing',
+  USER_UPDATED: 'user:updated', // Adding this new event
   
   FRIEND_REQUEST_SENT: 'friend:request:sent',
   FRIEND_REQUEST_RESPONDED: 'friend:request:responded',
