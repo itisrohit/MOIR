@@ -20,5 +20,7 @@ export const EVENTS = {
   
   CHAT_MESSAGE_UPDATE: 'chat:message:update',
   
-  ERROR: 'error'
+  ERROR: 'error',
+
+  AI_TOGGLE: 'ai:toggle',
 };

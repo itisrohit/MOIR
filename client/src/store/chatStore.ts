@@ -30,6 +30,7 @@ export interface ChatItem {
   otherUserId: string;
   updatedAt: string;
   type: string;
+  aiEnabled?: boolean; // Add this property
 }
 
 export interface ChatData {
@@ -115,6 +116,7 @@ interface ChatStore {
   updateMessageReadStatus: (conversationId: string, messageIds?: string[]) => void; // Add this new action
   clearSelectedChat: () => void; // Add this new action
   updateUserInfo: (user: { _id: string, name: string, username: string, image: string, status: string }) => void;
+  toggleAI: (conversationId: string, enabled: boolean) => Promise<void>; // Add to ChatStore interface
 }
 
 // Create the chat store
@@ -527,6 +529,32 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
       return { chatList: updatedChatList };
     });
     console.log('User info updated in chat store:', user._id);
+  },
+
+  // Toggle AI for a conversation
+  toggleAI: async (conversationId: string, enabled: boolean) => {
+    try {
+      set({ error: null });
+      
+      // Call API to toggle AI
+      const response = await api.put(`/conversation/toggle-ai/${conversationId}`, { enabled });
+      
+      if (response.data.success) {
+        // Update chat list with new AI status
+        set(state => ({
+          chatList: state.chatList.map(chat => 
+            chat.id === conversationId 
+              ? { ...chat, aiEnabled: enabled }
+              : chat
+          )
+        }));
+      } else {
+        set({ error: response.data.message });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to toggle AI';
+      set({ error: errorMessage });
+    }
   },
 }));
 

@@ -172,7 +172,7 @@ export function MessageLayout({
 
               <MessageInput 
                 onSendMessage={onSendMessage} 
-                conversationId={selectedChatId || ""}
+                conversationId={selectedChatId || ""} 
               />
             </>
           ) : (
