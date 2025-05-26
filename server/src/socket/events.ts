@@ -5,7 +5,7 @@ export const SOCKET_EVENTS = {
   USER_ONLINE: 'user:online',
   USER_OFFLINE: 'user:offline',
   USER_TYPING: 'user:typing',
-  USER_UPDATED: 'user:updated', // Adding this new event
+  USER_UPDATED: 'user:updated',
   
   FRIEND_REQUEST_SENT: 'friend:request:sent',
   FRIEND_REQUEST_RESPONDED: 'friend:request:responded',
@@ -17,7 +17,9 @@ export const SOCKET_EVENTS = {
   MESSAGE_READ: 'message:read',
   MESSAGE_READ_ACK: 'message:read:ack', 
 
-  CHAT_MESSAGE_UPDATE: 'chat:message:update', 
+  CHAT_MESSAGE_UPDATE: 'chat:message:update',
+  
+  AI_TOGGLE: 'ai:toggle', 
 
   ERROR: 'error'
 };

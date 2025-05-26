@@ -15,7 +15,7 @@ import {
 import { UserStatus } from "../models/user.model";
 import { User } from "../models/user.model";
 import { SOCKET_EVENTS } from "../socket/events";
-import { notifyConversationParticipants, notifyUser } from "../socket/service";
+import { notifyUser, notifyConversationParticipants } from "../socket/service";
 
 // Get chat list (conversations + friends without conversations)
 export const getChatList = asyncHandler(
@@ -89,6 +89,7 @@ export const getChatList = asyncHandler(
         otherUserId,
         updatedAt: conv.updatedAt,
         type: "conversation",
+        aiEnabled: conv.aiEnabled, // Add this line
       };
     });
 
@@ -352,6 +353,7 @@ export const sendMessage = asyncHandler(
           online: otherUser.status === UserStatus.ONLINE,
           unread: 0,
           otherUserId: otherUser._id,
+          aiEnabled: conversation.aiEnabled, // Add this line
         };
       }
     }
@@ -454,6 +456,60 @@ export const markMessagesAsRead = asyncHandler(
           success: true,
         },
         "Messages marked as read"
+      )
+    );
+  }
+);
+
+// Toggle AI for a conversation
+export const toggleAIForConversation = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?._id;
+    const { conversationId } = req.params;
+    const { enabled } = req.body;
+    
+    if (!userId) {
+      throw new ApiError(401, "Unauthorized access");
+    }
+
+    if (typeof enabled !== 'boolean') {
+      throw new ApiError(400, "Enabled status must be a boolean");
+    }
+
+    // Find the conversation and verify user has access
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      participants: { $in: [userId] },
+    });
+
+    if (!conversation) {
+      throw new ApiError(404, "Conversation not found or access denied");
+    }
+
+    // Update AI status
+    conversation.aiEnabled = enabled;
+    await conversation.save();
+
+    // Notify all participants about the AI status change
+    notifyConversationParticipants(
+      conversation.participants,
+      userId.toString(),
+      SOCKET_EVENTS.AI_TOGGLE,
+      {
+        conversationId,
+        aiEnabled: enabled,
+        toggledBy: userId,
+      }
+    );
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          success: true,
+          aiEnabled: enabled
+        },
+        `AI ${enabled ? 'enabled' : 'disabled'} for this conversation`
       )
     );
   }

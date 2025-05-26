@@ -4,6 +4,7 @@ export interface IConversation extends Document {
   participants: mongoose.Types.ObjectId[];
   lastMessage?: mongoose.Types.ObjectId;
   unreadCount: Map<string, number>;
+  aiEnabled: boolean; 
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,6 +22,10 @@ const conversationSchema: Schema = new Schema({
     type: Map,
     of: Number,
     default: new Map()
+  },
+  aiEnabled: {
+    type: Boolean,
+    default: false
   }
 }, { timestamps: true });
 
