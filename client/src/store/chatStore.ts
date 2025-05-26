@@ -13,7 +13,7 @@ const api = axios.create({
 export interface Message {
   id: string;
   text: string;
-  sender: 'me' | 'other';
+  sender: 'me' | 'other' | 'ai'; 
   time: string;
   createdAt?: string;
   read?: boolean; // Add this field for read status

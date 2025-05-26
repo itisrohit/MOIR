@@ -8,6 +8,7 @@ import { useSocket } from "@/hooks/useSocket";
 import { useChatStore } from "@/store/chatStore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppInitializer } from "@/components/AppInitializer";
+import { MizukiProvider } from "@/context/mizuki-context"; // Import MizukiProvider
 
 interface VLayoutProps {
   children: React.ReactNode;
@@ -88,10 +89,12 @@ export default function VLayout({ children }: VLayoutProps) {
       {/* Use AppInitializer here */}
       <AppInitializer />
       
-      {/* Existing layout */}
-      <MainLayout>
-        {children}
-      </MainLayout>
+      {/* Add MizukiProvider around MainLayout */}
+      <MizukiProvider>
+        <MainLayout>
+          {children}
+        </MainLayout>
+      </MizukiProvider>
     </>
   );
 }

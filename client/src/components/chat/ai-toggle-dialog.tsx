@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Bot, Shield } from "lucide-react";
+import React from "react";
 
 interface AIToggleDialogProps {
   isOpen: boolean;
@@ -23,8 +24,16 @@ export function AIToggleDialog({
   onConfirm
 }: AIToggleDialogProps) {
   
+  // Replace direct function call with memoized handler
+  const handleOpenChange = React.useCallback(
+    (open: boolean) => {
+      if (!open) onClose();
+    },
+    [onClose]
+  );
+  
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
