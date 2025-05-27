@@ -7,8 +7,21 @@ import { Conversation } from '../models/conversation.model';
 import { Message } from '../models/message.model';
 import { Types } from 'mongoose';
 
+
 // Store typing status: { conversationId: { userId: boolean } }
 const typingUsers = new Map<string, Record<string, boolean>>();
+
+// Define the MessageData interface
+interface MessageData {
+  id: string;
+  text: string;
+  conversationId: string;
+  sender: string;
+  time: string;
+  createdAt: string;
+  read?: boolean;
+  isNewConversation?: boolean;
+}
 
 export const registerSocketHandlers = (io: Server) => {
   io.on(SOCKET_EVENTS.CONNECTION, (socket: AuthenticatedSocket) => {
@@ -143,6 +156,59 @@ export const registerSocketHandlers = (io: Server) => {
         console.log(`Marked messages as read in conversation ${conversationId} for user ${userId}`);
       } catch (error) {
         console.error("Error processing read receipts:", error);
+      }
+    });
+    
+    // Add new message handler
+    socket.on(SOCKET_EVENTS.MESSAGE_RECEIVE, (messageData: MessageData) => {
+      try {
+        const userId = socket.user?._id.toString();
+        if (!userId) return;
+        
+        console.log('Received message via socket:', messageData);
+        
+        // Transform the message to match the Message type expected by the client
+        const transformedMessage = {
+          id: messageData.id,
+          text: messageData.text,
+          sender: messageData.sender === "ai" ? "ai" : 
+                 messageData.sender === userId ? "me" : "other",
+          time: messageData.time,
+          createdAt: messageData.createdAt,
+          read: messageData.read,
+        };
+        
+        // Handle new conversation if needed
+        if (messageData.isNewConversation) {
+          // You would need to handle this case specifically
+          // This might involve adding the conversation to the user's list
+          console.log('New conversation detected:', messageData.conversationId);
+          
+          // In a real implementation, you might want to fetch conversation details
+          // and update the client's state
+        }
+        
+        console.log('Transformed message:', transformedMessage);
+        
+        // Note: On the server side, you don't actually update the client's state directly
+        // The client will receive this message and update its own state
+        // This is just for logging purposes
+      } catch (error) {
+        console.error("Error handling incoming message:", error);
+      }
+    });
+    
+    // You may also want to handle the AI_TOGGLE event
+    socket.on(SOCKET_EVENTS.AI_TOGGLE, (data: { conversationId: string, aiEnabled: boolean, toggledBy: string }) => {
+      try {
+        const userId = socket.user?._id.toString();
+        if (!userId) return;
+        
+        console.log(`AI ${data.aiEnabled ? 'enabled' : 'disabled'} for conversation ${data.conversationId}`);
+        
+        // The client will handle updating its own state when receiving this event
+      } catch (error) {
+        console.error("Error handling AI toggle event:", error);
       }
     });
   });
