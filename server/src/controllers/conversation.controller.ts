@@ -15,7 +15,7 @@ import {
 import { UserStatus } from "../models/user.model";
 import { User } from "../models/user.model";
 import { SOCKET_EVENTS } from "../socket/events";
-import { notifyConversationParticipants, notifyUser } from "../socket/service";
+import { notifyUser, notifyConversationParticipants } from "../socket/service";
 
 // Get chat list (conversations + friends without conversations)
 export const getChatList = asyncHandler(
@@ -89,6 +89,7 @@ export const getChatList = asyncHandler(
         otherUserId,
         updatedAt: conv.updatedAt,
         type: "conversation",
+        aiEnabled: conv.aiEnabled, // Add this line
       };
     });
 
@@ -198,13 +199,14 @@ export const getMessages = asyncHandler(
       id: message._id,
       text: message.text,
       sender:
+        message.isAIMessage ? "ai" :
         message.sender._id.toString() === userId.toString() ? "me" : "other",
       time: new Date(message.createdAt).toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       }),
       createdAt: message.createdAt,
-      read: message.read, // Include read status
+      read: message.read,
     }));
 
     // Mark messages as read
@@ -352,6 +354,7 @@ export const sendMessage = asyncHandler(
           online: otherUser.status === UserStatus.ONLINE,
           unread: 0,
           otherUserId: otherUser._id,
+          aiEnabled: conversation.aiEnabled, // Add this line
         };
       }
     }
@@ -454,6 +457,170 @@ export const markMessagesAsRead = asyncHandler(
           success: true,
         },
         "Messages marked as read"
+      )
+    );
+  }
+);
+
+// Toggle AI for a conversation
+export const toggleAIForConversation = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?._id;
+    const { conversationId } = req.params;
+    const { enabled } = req.body;
+    
+    if (!userId) {
+      throw new ApiError(401, "Unauthorized access");
+    }
+
+    if (typeof enabled !== 'boolean') {
+      throw new ApiError(400, "Enabled status must be a boolean");
+    }
+
+    // Find the conversation and verify user has access
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      participants: { $in: [userId] },
+    });
+
+    if (!conversation) {
+      throw new ApiError(404, "Conversation not found or access denied");
+    }
+
+    // Update AI status
+    conversation.aiEnabled = enabled;
+    await conversation.save();
+
+    // Notify all participants about the AI status change
+    notifyConversationParticipants(
+      conversation.participants,
+      userId.toString(),
+      SOCKET_EVENTS.AI_TOGGLE,
+      {
+        conversationId,
+        aiEnabled: enabled,
+        toggledBy: userId,
+      }
+    );
+
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          success: true,
+          aiEnabled: enabled
+        },
+        `AI ${enabled ? 'enabled' : 'disabled'} for this conversation`
+      )
+    );
+  }
+);
+
+// Send an AI message in a conversation
+export const sendAIMessage = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?._id;
+    const { text } = req.body;
+    const { conversationId } = req.params;
+
+    if (!userId) {
+      throw new ApiError(401, "Unauthorized access");
+    }
+
+    if (!text || !text.trim()) {
+      throw new ApiError(400, "Message text is required");
+    }
+
+    // Verify conversation exists and user has access
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      participants: { $in: [userId] },
+    });
+
+    if (!conversation) {
+      throw new ApiError(404, "Conversation not found or access denied");
+    }
+
+    // Verify AI is enabled for this conversation
+    if (!conversation.aiEnabled) {
+      throw new ApiError(400, "AI is not enabled for this conversation");
+    }
+
+    // Create special AI message (using the userId as sender for permission checks)
+    const newMessage = (await Message.create({
+      conversationId,
+      sender: userId, // Using user ID as sender but will mark as AI in client
+      text,
+      read: false,
+      isAIMessage: true // Add this field to your Message model
+    })) as unknown as MessageDocument;
+
+    // Update the conversation with last message
+    conversation.lastMessage = newMessage._id;
+
+    // Update unread counters for all participants except the current user
+    conversation.participants.forEach((participantId) => {
+      if (participantId.toString() !== userId.toString()) {
+        const currentCount =
+          conversation.unreadCount.get(participantId.toString()) || 0;
+        conversation.unreadCount.set(
+          participantId.toString(),
+          currentCount + 1
+        );
+      }
+    });
+
+    await conversation.save();
+
+    // Format the response
+    const responseMessage = {
+      id: newMessage._id,
+      text: newMessage.text,
+      sender: "ai", // Mark as AI for the sender
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      createdAt: newMessage.createdAt,
+    };
+
+    // Notify all participants including the sender
+    conversation.participants.forEach((participantId) => {
+      const isCurrentUser = participantId.toString() === userId.toString();
+      
+      // Send to all participants, with appropriate sender field
+      notifyUser(participantId.toString(), SOCKET_EVENTS.MESSAGE_RECEIVE, {
+        id: newMessage._id,
+        text: newMessage.text,
+        sender: "ai", // Always AI for all recipients
+        conversationId,
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        createdAt: newMessage.createdAt,
+      });
+      
+      // Update chat list for all participants
+      notifyUser(participantId.toString(), SOCKET_EVENTS.CHAT_MESSAGE_UPDATE, {
+        id: conversationId,
+        lastMessage: newMessage.text,
+        timestamp: new Date().toLocaleTimeString(),
+        updatedAt: new Date(),
+      });
+    });
+
+    res.status(201).json(
+      new ApiResponse(
+        201,
+        {
+          success: true,
+          data: {
+            message: responseMessage,
+            conversationId,
+          },
+        },
+        "AI message sent successfully"
       )
     );
   }

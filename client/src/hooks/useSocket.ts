@@ -75,6 +75,13 @@ interface UserUpdateEvent {
   };
 }
 
+// Add this interface for AI toggle events
+interface AIToggleEvent {
+  conversationId: string;
+  aiEnabled: boolean;
+  toggledBy: string;
+}
+
 // Global flags to track socket connection and event handlers
 let socketInitialized = false;
 let handlersRegistered = false;
@@ -142,24 +149,17 @@ export const useSocket = () => {
       const currentUserId = useAuthStore.getState().user?._id;
       
       // Check BOTH if this is the selected chat AND if we're on a chat page
-      // by examining the current path
       const currentPath = window.location.pathname;
       const isOnChatPage = currentPath.startsWith('/v/chat');
       const isActiveChat = isOnChatPage && state.selectedChatId === conversationId;
-      
-      console.log('Message active status check:', {
-        conversationId,
-        selectedChatId: state.selectedChatId,
-        isOnChatPage,
-        isActiveChat,
-        path: currentPath
-      });
       
       // Transform the message to match our Message type
       const transformedMessage: Message = {
         id: messageData.id,
         text: messageData.text,
-        sender: messageData.sender === currentUserId ? "me" : "other",
+        // Add this special check for "ai" sender
+        sender: messageData.sender === "ai" ? "ai" : 
+               messageData.sender === currentUserId ? "me" : "other",
         time: messageData.time,
         read: messageData.read,
       };
@@ -356,6 +356,22 @@ export const useSocket = () => {
       useFriendStore.getState().updateFriendInfo(updatedUser);
     };
 
+    // Add AI toggle handler
+    const aiToggleHandler = (data: AIToggleEvent) => {
+      console.log('AI toggled:', data);
+      
+      // Update chat store with new AI status
+      const chatStore = useChatStore.getState();
+      chatStore.chatList.forEach(chat => {
+        if (chat.id === data.conversationId) {
+          chat.aiEnabled = data.aiEnabled;
+        }
+      });
+      
+      // Re-render chat list
+      useChatStore.setState({ chatList: [...chatStore.chatList] });
+    };
+    
     // Register all handlers
     socket.on(EVENTS.MESSAGE_RECEIVE, messageHandler);
     socket.on(EVENTS.USER_ONLINE, onlineHandler);
@@ -368,6 +384,7 @@ export const useSocket = () => {
     socket.on(EVENTS.FRIEND_REQUEST_SEEN, friendRequestSeenHandler);
     socket.on(EVENTS.FRIEND_NOTIFICATIONS_CLEARED, friendNotificationsClearedHandler);
     socket.on(EVENTS.USER_UPDATED, userUpdatedHandler);
+    socket.on(EVENTS.AI_TOGGLE, aiToggleHandler);
     
     // No cleanup function - we want these handlers to persist
   }, [updateChatOnlineStatus, addNewMessage, updateLastMessageInfo, setUserTyping, markChatAsRead]);

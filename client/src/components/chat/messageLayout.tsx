@@ -137,7 +137,10 @@ export function MessageLayout({
                 </div>
               ) : (
                 chatData.messages && chatData.messages.length > 0 ? (
-                  <MessageList messages={chatData.messages} />
+                  <MessageList 
+                    messages={chatData.messages} 
+                    conversationId={selectedChatId || ""}
+                  />
                 ) : (
                   chatData.lastMessage ? (
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">

@@ -5,6 +5,7 @@ export interface IMessage extends Document {
   sender: mongoose.Types.ObjectId;
   text: string;
   read: boolean;
+  isAIMessage?: boolean; // Add this field
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +26,10 @@ const messageSchema: Schema = new Schema({
     required: true
   },
   read: {
+    type: Boolean,
+    default: false
+  },
+  isAIMessage: {
     type: Boolean,
     default: false
   }

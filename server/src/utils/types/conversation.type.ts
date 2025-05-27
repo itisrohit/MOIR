@@ -16,12 +16,12 @@ export interface PopulatedMessage {
   createdAt: Date;
 }
 
-
 export type ConversationDocument = mongoose.Document & {
   _id: mongoose.Types.ObjectId;
   participants: mongoose.Types.ObjectId[];
   lastMessage?: mongoose.Types.ObjectId;
   unreadCount: Map<string, number>;
+  aiEnabled: boolean; 
   createdAt: Date;
   updatedAt: Date;
 }
