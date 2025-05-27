@@ -149,24 +149,17 @@ export const useSocket = () => {
       const currentUserId = useAuthStore.getState().user?._id;
       
       // Check BOTH if this is the selected chat AND if we're on a chat page
-      // by examining the current path
       const currentPath = window.location.pathname;
       const isOnChatPage = currentPath.startsWith('/v/chat');
       const isActiveChat = isOnChatPage && state.selectedChatId === conversationId;
-      
-      console.log('Message active status check:', {
-        conversationId,
-        selectedChatId: state.selectedChatId,
-        isOnChatPage,
-        isActiveChat,
-        path: currentPath
-      });
       
       // Transform the message to match our Message type
       const transformedMessage: Message = {
         id: messageData.id,
         text: messageData.text,
-        sender: messageData.sender === currentUserId ? "me" : "other",
+        // Add this special check for "ai" sender
+        sender: messageData.sender === "ai" ? "ai" : 
+               messageData.sender === currentUserId ? "me" : "other",
         time: messageData.time,
         read: messageData.read,
       };

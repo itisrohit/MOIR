@@ -169,6 +169,31 @@ export function MessageInput({ onSendMessage, conversationId }: MessageInputProp
     }
   };
   
+  // Update the button click handlers
+  const handleIceBreaker = async () => {
+    const response = await requestHelp(conversationId, MizukiHelp.ICE_BREAKER);
+    if (response) {
+      setMessageInput(response);
+      // Focus the input
+      const inputElement = document.querySelector('input[placeholder^="Type a message"]');
+      if (inputElement) {
+        (inputElement as HTMLInputElement).focus();
+      }
+    }
+  };
+
+  const handleConversationStarter = async () => {
+    const response = await requestHelp(conversationId, MizukiHelp.STARTER);
+    if (response) {
+      setMessageInput(response);
+      // Focus the input
+      const inputElement = document.querySelector('input[placeholder^="Type a message"]');
+      if (inputElement) {
+        (inputElement as HTMLInputElement).focus();
+      }
+    }
+  };
+  
   return (
     <div className="p-4 border-t bg-background/80 backdrop-blur-sm relative">
       {showCommands && (
@@ -214,7 +239,7 @@ export function MessageInput({ onSendMessage, conversationId }: MessageInputProp
               variant="ghost"
               size="icon"
               className="rounded-full h-8 w-8 hover:bg-accent flex-shrink-0"
-              onClick={() => requestHelp(conversationId, MizukiHelp.ICE_BREAKER)}
+              onClick={handleIceBreaker}
               disabled={isThinking}
               title="Ask for an ice breaker"
             >
@@ -224,7 +249,7 @@ export function MessageInput({ onSendMessage, conversationId }: MessageInputProp
               variant="ghost"
               size="icon"
               className="rounded-full h-8 w-8 hover:bg-accent flex-shrink-0"
-              onClick={() => requestHelp(conversationId, MizukiHelp.STARTER)}
+              onClick={handleConversationStarter}
               disabled={isThinking}
               title="Ask for a conversation starter"
             >

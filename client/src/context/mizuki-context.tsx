@@ -1,21 +1,30 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { getMizukiResponse, getSuggestions, MizukiHelp } from '@/service/mizuki.service';
-import { useChatStore, Message } from '@/store/chatStore';
+import { useChatStore} from '@/store/chatStore';
+import axios from 'axios';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
+
+// Create axios instance with base URL
+const api = axios.create({
+  baseURL: API_URL,
+  withCredentials: true,
+});
 
 interface MizukiContextType {
   isThinking: boolean;
   suggestions: string[];
-  requestHelp: (conversationId: string, helpType: MizukiHelp) => Promise<void>;
+  requestHelp: (conversationId: string, helpType: MizukiHelp) => Promise<string | undefined>; // Return the text instead of void
   clearSuggestions: () => void;
-  askDirectQuestion: (conversationId: string, question: string) => Promise<void>; // Add new method
+  askDirectQuestion: (conversationId: string, question: string) => Promise<void>;
 }
 
 const MizukiContext = createContext<MizukiContextType>({
   isThinking: false,
   suggestions: [],
-  requestHelp: async () => {},
+  requestHelp: async () => undefined, // Update default implementation
   clearSuggestions: () => {},
-  askDirectQuestion: async () => {} // Add default implementation
+  askDirectQuestion: async () => {}
 });
 
 export const useMizuki = () => useContext(MizukiContext);
@@ -44,13 +53,6 @@ export function MizukiProvider({ children }: MizukiProviderProps) {
   // Check if AI is enabled for current chat
   const isAIEnabled = currentChat?.aiEnabled || false;
   
-  // Memoize functions to prevent unnecessary effect reruns
-  const getFormattedTime = useCallback(() => {
-    return new Date().toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    }).replace(/AM|PM/g, match => match.toLowerCase());
-  }, []);
   
   const formatMessagesForAI = useCallback((conversationId: string) => {
     const messages = chatMessages[conversationId] || [];
@@ -71,7 +73,7 @@ export function MizukiProvider({ children }: MizukiProviderProps) {
   
   // Request help from Mizuki
   const requestHelp = useCallback(async (conversationId: string, helpType: MizukiHelp) => {
-    if (!isAIEnabled || isThinking) return;
+    if (!isAIEnabled || isThinking) return undefined;
     
     try {
       setIsThinking(true);
@@ -83,28 +85,24 @@ export function MizukiProvider({ children }: MizukiProviderProps) {
       // Get response from Mizuki
       const response = await getMizukiResponse(formattedMessages, helpType);
       
-      // Create a new message with the response
-      if (helpType !== MizukiHelp.SUGGESTION) {
-        const newMessage: Message = {
-          id: `mizuki-${Date.now()}`,
-          text: response.text,
-          sender: 'ai' as const,
-          time: getFormattedTime(),
-          read: true,
-        };
-        
-        // Add the message to the chat
-        useChatStore.getState().addNewMessage(conversationId, newMessage);
-      } else if (response.suggestions && response.suggestions.length > 0) {
-        // Set suggestions for the user
-        setSuggestions(response.suggestions);
+      // Handle response based on help type
+      if (helpType === MizukiHelp.SUGGESTION) {
+        // Handle suggestions separately - they don't get saved to server
+        if (response.suggestions && response.suggestions.length > 0) {
+          setSuggestions(response.suggestions);
+        }
+        return undefined;
+      } else {
+        // For all other help types, return the response text to be placed in input
+        return response.text;
       }
     } catch (error) {
       console.error('Error getting Mizuki response:', error);
+      return undefined;
     } finally {
       setIsThinking(false);
     }
-  }, [formatMessagesForAI, getFormattedTime, isAIEnabled, isThinking]);
+  }, [formatMessagesForAI, isAIEnabled, isThinking]);
   
   // Auto-suggest after periods of inactivity
   useEffect(() => {
@@ -209,26 +207,20 @@ export function MizukiProvider({ children }: MizukiProviderProps) {
       const formattedMessages = formatMessagesForAI(conversationId);
       
       // Get direct question response from Mizuki
-      // Pass the question as the fourth parameter
       const response = await getMizukiResponse(formattedMessages, MizukiHelp.DIRECT, 0, question);
       
-      // Create a new message with the response
-      const newMessage: Message = {
-        id: `mizuki-${Date.now()}`,
-        text: response.text,
-        sender: 'ai',
-        time: getFormattedTime(),
-        read: true,
-      };
+      // Send the AI response to the server
+      await api.post(`/conversation/send-ai/${conversationId}`, {
+        text: response.text
+      });
       
-      // Add the message to the chat
-      useChatStore.getState().addNewMessage(conversationId, newMessage);
+      // No need to add the message manually - it will come back via socket
     } catch (error) {
       console.error('Error getting direct response from Mizuki:', error);
     } finally {
       setIsThinking(false);
     }
-  }, [formatMessagesForAI, getFormattedTime, isAIEnabled, isThinking]);
+  }, [formatMessagesForAI, isAIEnabled, isThinking]);
 
   return (
     <MizukiContext.Provider value={{
