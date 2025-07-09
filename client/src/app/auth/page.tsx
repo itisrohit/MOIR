@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,9 +75,6 @@ export default function AuthPage() {
   // Handle mounting state with reset functionality and check for mobile
   useEffect(() => {
     // Check if we've already shown the greeting before
-    const hasShownBefore = localStorage.getItem("hasShownFireflyGreeting") === "true";
-    // setHasShownInitialGreeting(hasShownBefore); // This state is removed
-    // greetingShownRef.current = hasShownBefore; // This ref is removed
     
     // Check if we're on mobile
     const checkIfMobile = () => {
@@ -217,143 +214,9 @@ export default function AuthPage() {
   // Remove all firefly animation, mouse, and greeting logic
 
   // Animation variants
-  const wingVariants = {
-    sitting: {
-      opacity: [0.6, 0.8, 0.6],
-      rotateY: [0, 40, 0],
-      pathLength: [0.8, 1, 0.8], 
-      transition: {
-        duration: 2,
-        repeat: Infinity,
-        repeatType: "reverse" as const,
-        ease: "easeInOut"
-      }
-    },
-    following: {
-      opacity: [0.6, 0.8, 0.6],
-      rotateY: [0, 80, 0],
-      pathLength: [0.8, 1, 0.8],
-      transition: {
-        duration: 0.5,
-        repeat: Infinity,
-        repeatType: "reverse" as const,
-        ease: "easeInOut"
-      }
-    }
-  };
-
-  const fireflyVariants = {
-    initial: {
-      scale: 0.9,
-      opacity: 0
-    },
-    sitting: {
-      scale: 1,
-      opacity: 1,
-      transition: {
-        duration: 0.5,
-        ease: "easeOut"
-      }
-    },
-    following: {
-      scale: 1,
-      opacity: 1,
-      transition: {
-        duration: 0.3,
-        ease: "easeOut"
-      }
-    }
-  };
-
-  // Function to generate a response from Gemini API
-  const generateFireflyResponse = async (prompt: string) => {
-    // Remove mobile check to allow responses on mobile
-    // setIsThinking(true); // isThinking is removed
-    
-    try {
-      // Create conversation context
-      // const history = conversationHistory.slice(-10); // Keep last 10 messages
-      // const systemPrompt = "You are Glimmer, a SUPER excited and ALWAYS happy childish firefly AI assistant. Use LOTS of exclamation marks!!! Add fun expressions like *bounce* *twirl* *giggle*. Keep responses short and use simple words a child would use. You LOVE making friends and get SUPER excited about EVERYTHING!";
-      
-      // const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'x-goog-api-key': GEMINI_API_KEY
-      //   },
-      //   body: JSON.stringify({
-      //     contents: [
-      //       {
-      //         role: "user",
-      //         parts: [{ text: systemPrompt }]
-      //       },
-      //       ...history.map(msg => ({
-      //         role: msg.role,
-      //         parts: [{ text: msg.content }]
-      //       })),
-      //       {
-      //         role: "user", 
-      //         parts: [{ text: prompt }]
-      //       }
-      //     ],
-      //     generationConfig: {
-      //       temperature: 0.7,
-      //       maxOutputTokens: 100
-      //     }
-      //   })
-      // });
-
-      // const data = await response.json();
-      
-      // if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-      //   const fireflyResponse = data.candidates[0].content.parts[0].text;
-        
-      //   // Update conversation history
-      //   setConversationHistory(prev => [
-      //     ...prev, 
-      //     { role: "user", content: prompt },
-      //     { role: "model", content: fireflyResponse }
-      //   ]);
-        
-      //   return fireflyResponse;
-      // } else {
-      //   return "Hi there! *sparkle*";
-      // }
-    } catch (error) {
-      console.error("Firefly API error:", error);
-      return "Oops! My light flickered. Hi again!";
-    } finally {
-      // setIsThinking(false); // isThinking is removed
-    }
-  };
-
-  // Add a click handler to the firefly to engage in conversation
-  const handleFireflyClick = async () => {
-    // if (isThinking) return; // Only check if thinking, allow on mobile now
-    
-    // setIsFireflySpeaking(true);
-    
-    // // If no history yet, use default excited greeting
-    // if (conversationHistory.length === 0) {
-    //   const initialMessage = "Eeeeee! You clicked me!! I'm Glimmer! Wanna be friends?? *happy twirl*";
-    //   setConversationHistory([{ role: "model", content: initialMessage }]);
-    //   setHasShownInitialGreeting(true);
-    //   localStorage.setItem("hasShownFireflyGreeting", "true");
-      
-    //   setTimeout(() => {
-    //     setIsFireflySpeaking(false);
-    //   }, 10000);
-      
-    //   return;
-    // }
-    
-    // // Generate responses on both mobile and desktop now
-    // generateFireflyResponse("Ask the user an EXCITED question or make a SUPER HAPPY comment! Be really childish and playful!").then(() => {
-    //   setTimeout(() => {
-    //     setIsFireflySpeaking(false);
-    //   }, 12000);
-    // });
-  };
+  // Remove unused: wingVariants
+  // Remove unused: fireflyVariants
+  // Remove unused: generateFireflyResponse, prompt, handleFireflyClick
   
   return (
     <div className="flex min-h-screen w-full items-center justify-center overflow-hidden relative bg-gradient-to-b from-zinc-900 to-black py-12 px-4 sm:px-6 lg:px-8" style={{ height: '100vh' }}>
