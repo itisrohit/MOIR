@@ -1,4 +1,4 @@
-# MOIR Chat
+# MOIR
 
 Real-time messaging platform with AI-powered conversation assistance.
 
